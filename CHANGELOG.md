@@ -2,6 +2,54 @@
 
 Ogni versione del Salvadanaio, dalla più recente alla più vecchia.
 
+## 0.1 - 25 settembre 2026
+
+Tre schermate per il mese, una soglia di sicurezza e le notifiche.
+
+**Aggiunto**
+
+- Schermata *Giorno per giorno*: le spese divise per giorno, con causale,
+  categoria e il totale di ogni giorno. Una riga di sintesi dice quanto hai
+  speso oggi, nel mese e quanto manca alla soglia.
+- Schermata *Mese*: la vista d'insieme, con i quattro numeri, la soglia, le
+  uscite per categoria, le entrate e il traguardo.
+- Schermata *Grafico*: in grande se il mese è in positivo o in rosso; sotto,
+  entrate e uscite accumulate giorno per giorno contro la soglia, con il
+  giorno del superamento segnato; più in basso i mesi a confronto.
+- Soglia di sicurezza: una cifra fissa di uscite mensili. Superata, compare
+  un avviso a schermo che resta finché non lo chiudi.
+- Secondo avviso quando il mese va in rosso (uscite oltre le entrate).
+- Scheda *Notifiche*, con lo storico degli avvisi e il numero di quelli non
+  letti accanto al nome.
+- Scheda *Impostazioni*, che raccoglie soglia, percentuale e traguardo.
+
+**Cambiato**
+
+- Le schede Andamento e Obiettivo non ci sono più come schede a sé: il
+  confronto fra i mesi sta nella schermata Grafico, il traguardo nella
+  schermata Mese e le sue regole nelle Impostazioni.
+- Il campo "Descrizione" si chiama "Causale" e viene subito dopo l'importo.
+- La proposta di copiare lo stipendio compare solo dal giorno di paga in poi.
+  Prima rischiava di creare un movimento con una data futura.
+- I grafici si disegnano alla larghezza vera della finestra: sul telefono le
+  scritte restano leggibili.
+
+**Scelte tecniche**
+
+- Prima del giorno di paga lo stipendio del mese scorso conta come "atteso",
+  sia per l'avviso di mese in rosso sia per il verdetto del grafico.
+  Altrimenti ogni mese sarebbe in rosso fino al 27.
+- Gli avvisi li decide il server, dopo ogni modifica, usando lo stesso
+  `conti.js` della pagina: le regole stanno in un posto solo e le prove le
+  controllano.
+- Ogni tipo di avviso scatta al massimo una volta per mese, e solo per il
+  mese in corso o quello prima: segnare oggi una spesa di tre mesi fa non
+  deve far comparire un avviso su un mese chiuso da tempo.
+- I dati della versione 0.0 si aprono senza fare nulla: la soglia parte
+  vuota e l'elenco delle notifiche anche.
+- Le linee del grafico usano tre colori scelti per restare distinguibili
+  anche da chi confonde i colori, e hanno comunque il nome scritto accanto.
+
 ## 0.0 - 25 settembre 2026
 
 La prima versione funzionante.

@@ -3,9 +3,11 @@
 const fs = require('fs'), vm = require('vm');
 const ctx = {};
 vm.createContext(ctx);
+// Lo carico come lo carica il browser (senza "module"), cosi' provo la versione vera.
 vm.runInContext(fs.readFileSync(__dirname + '/../public/conti.js', 'utf8')
   + '\nglobalThis.API = { leggiImporto, euro, riepilogoMese, andamento, mediaAvanzato,'
-  + ' progressoObiettivo, meseDiArrivo, stipendioDaCopiare, spostaMese, nomeMese };', ctx);
+  + ' progressoObiettivo, meseDiArrivo, stipendioDaCopiare, spostaMese, nomeMese,'
+  + ' entrateDiRiferimento, statoSoglia, controllaAvvisi, serieGiornaliera, giornoDiSuperamento };', ctx);
 const C = ctx.API;
 
 let errori = 0, prove = 0;
@@ -106,6 +108,45 @@ uguale(C.stipendioDaCopiare(mov, '2026-08'), null, 'agosto ce l\'ha gia\': nessu
 uguale(C.stipendioDaCopiare(mov, '2026-07'), null, 'giugno non aveva stipendio: nessuna proposta');
 const fineMese = [{ tipo: 'entrata', importo: 1000, categoria: 'Stipendio', data: '2026-01-31' }];
 uguale(C.stipendioDaCopiare(fineMese, '2026-02').data, '2026-02-28', 'il 31 gennaio diventa il 28 febbraio');
+
+console.log('\nSoglia');
+const sog = C.statoSoglia(mov, '2026-08', 100000);
+uguale([sog.speso, sog.restano, sog.superata], [110000, -10000, true], 'agosto: 1.100 spesi su 1.000 di soglia -> superata di 100');
+uguale(C.statoSoglia(mov, '2026-08', 110000).superata, false, 'arrivare esattamente alla soglia non e\' superarla');
+uguale(C.statoSoglia(mov, '2026-08', null), null, 'senza soglia, niente stato');
+
+console.log('\nEntrate di riferimento');
+uguale(C.entrateDiRiferimento(mov, '2026-09'), { entrate: 185000, gia: 0, stipendioAtteso: 185000 }, 'settembre: stipendio non arrivato, conta quello di agosto');
+uguale(C.entrateDiRiferimento(mov, '2026-08').stipendioAtteso, 0, 'agosto: lo stipendio c\'e\', nessun atteso');
+
+console.log('\nAvvisi');
+const imp = { soglia: 60000 };
+let av = C.controllaAvvisi(mov, imp, '2026-09', []);
+uguale(av.map((a) => a.tipo), ['soglia'], 'settembre: 700 spesi, soglia 600 -> avviso soglia, ma non rosso (lo stipendio e\' atteso)');
+uguale(C.controllaAvvisi(mov, imp, '2026-09', av).length, 0, 'lo stesso avviso non si ripete nello stesso mese');
+uguale(C.controllaAvvisi(mov, { soglia: 80000 }, '2026-09', []).length, 0, 'sotto la soglia nessun avviso');
+uguale(C.controllaAvvisi(mov, {}, '2026-09', []).length, 0, 'senza soglia e senza rosso, silenzio');
+const spendaccione = mov.concat([{ tipo: 'uscita', importo: 120000, categoria: 'Altro', data: '2026-09-20' }]);
+av = C.controllaAvvisi(spendaccione, { soglia: 160000 }, '2026-09', []);
+uguale(av.map((a) => a.tipo), ['soglia', 'rosso'], 'settembre a 1.900 spesi: soglia 1.600 e rosso sui 1.850 attesi');
+uguale(av[1].testo, 'Settembre 2026: le uscite (1.900,00 €) hanno superato le entrate previste (1.850,00 €, contando lo stipendio non ancora arrivato) di 50,00 €.', 'il testo dell\'avviso rosso');
+uguale(C.controllaAvvisi(mov, {}, '2026-07', []).length, 0, 'luglio in positivo: nessun rosso');
+const vecchio = [{ tipo: 'soglia', mese: '2026-08' }];
+uguale(C.controllaAvvisi(spendaccione, { soglia: 160000 }, '2026-09', vecchio).length, 2, 'un avviso di agosto non conta per settembre');
+
+console.log('\nSerie giorno per giorno');
+const serie = C.serieGiornaliera(mov, '2026-08', '2026-09-25');
+uguale(serie.length, 31, 'un mese chiuso ha tutti i suoi giorni');
+uguale(serie[0], { giorno: 1, entrate: 0, uscite: 70000 }, 'il primo: affitto');
+uguale(serie[11], { giorno: 12, entrate: 40000, uscite: 95000 }, 'il 12: extra del 10 e spesa del 12, accumulati');
+uguale(serie[30], { giorno: 31, entrate: 225000, uscite: 110000 }, 'l\'ultimo giorno torna col riepilogo');
+uguale(C.serieGiornaliera(mov, '2026-09', '2026-09-25').length, 25, 'il mese in corso si ferma a oggi');
+uguale(C.serieGiornaliera(mov, '2026-10', '2026-09-25').length, 0, 'un mese futuro e\' vuoto');
+const conBolletta = mov.concat([{ tipo: 'uscita', importo: 5000, categoria: 'Bollette', data: '2026-09-28' }]);
+const sb = C.serieGiornaliera(conBolletta, '2026-09', '2026-09-25');
+uguale([sb.length, sb[sb.length - 1].uscite], [28, 75000], 'una spesa gia\' segnata per il 28 allunga il mese in corso fino al 28');
+uguale(C.giornoDiSuperamento(serie, 100000), 20, 'la soglia di 1.000 si supera il 20 agosto');
+uguale(C.giornoDiSuperamento(serie, 500000), null, 'una soglia mai superata');
 
 console.log('\nMesi');
 uguale(C.spostaMese('2026-12', 1), '2027-01', 'dicembre + 1 = gennaio dell\'anno dopo');

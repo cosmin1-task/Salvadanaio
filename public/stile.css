@@ -20,6 +20,13 @@
   --griglia: #ebe8e2;
   --ombra: 0 1px 2px rgba(0,0,0,.05), 0 4px 12px rgba(0,0,0,.04);
   --raggio: 10px;
+  /* Le tre linee del grafico del mese: tre tinte ben distinguibili anche da
+     chi confonde i colori (verificate con lo strumento apposito). */
+  --serie-uscite: #2a78d6;
+  --serie-soglia: #eb6834;
+  --serie-entrate: #1baf7a;
+  --avviso-soglia: #b5531f;
+  --avviso-soglia-tenue: #fcece3;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -39,6 +46,11 @@
     --barra: #7f9dbd;
     --griglia: #2a2d32;
     --ombra: 0 1px 2px rgba(0,0,0,.3), 0 4px 12px rgba(0,0,0,.25);
+    --serie-uscite: #3987e5;
+    --serie-soglia: #d95926;
+    --serie-entrate: #199e70;
+    --avviso-soglia: #f0976a;
+    --avviso-soglia-tenue: #3a2519;
   }
 }
 
@@ -82,13 +94,15 @@ body {
 }
 .stato-salvataggio.visibile { opacity: 1; }
 
-.schede { display: flex; gap: 4px; max-width: 900px; margin: 10px auto 0; }
+.schede { display: flex; gap: 2px; max-width: 900px; margin: 10px auto 0; overflow-x: auto; scrollbar-width: none; }
+.schede::-webkit-scrollbar { display: none; }
 
 .scheda {
   border: 0; background: none; cursor: pointer;
   padding: 8px 12px; border-radius: 8px 8px 0 0;
   font: inherit; font-size: 14px; color: var(--testo-tenue);
   border-bottom: 2px solid transparent;
+  white-space: nowrap;
 }
 .scheda:hover { color: var(--testo); }
 .scheda.attiva { color: var(--testo); font-weight: 600; border-bottom-color: var(--accento); }
@@ -213,13 +227,22 @@ input:focus, select:focus { outline: 2px solid var(--accento); outline-offset: -
 
 /* ---------- elenco movimenti ---------- */
 
-.giorno { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--testo-tenue); margin: 14px 0 4px; }
-.giorno:first-child { margin-top: 0; }
+.giorno + .giorno { margin-top: 18px; }
+.giorno-testa {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  padding-bottom: 6px; border-bottom: 1px solid var(--bordo); margin-bottom: 2px;
+}
+.giorno-data { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--testo-tenue); }
+.giorno-totale { font-size: 13px; color: var(--testo-tenue); }
+.giorno-totale strong { color: var(--testo); font-weight: 600; }
+.giorno-totale .positivo strong { color: var(--positivo); }
 
 .movimento { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--griglia); font-size: 14px; }
 .movimento:last-child { border-bottom: 0; }
 .movimento-testo { flex: 1; min-width: 0; }
-.movimento-descrizione { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.movimento-causale { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.movimento.atteso { color: var(--testo-tenue); font-style: italic; }
+.movimento.atteso .movimento-importo { font-weight: 400; }
 .movimento-categoria { font-size: 12px; color: var(--testo-tenue); }
 .movimento-importo { font-weight: 600; }
 .movimento .azioni { display: flex; opacity: .35; transition: opacity .15s; }
@@ -252,7 +275,7 @@ input:focus, select:focus { outline: 2px solid var(--accento); outline-offset: -
 
 .tabella { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .tabella th { text-align: right; font-weight: 600; font-size: 12px; color: var(--testo-tenue); padding: 6px 8px; border-bottom: 1px solid var(--bordo); }
-.tabella th:first-child, .tabella td:first-child { text-align: left; }
+.tabella th:first-child, .tabella td:first-child { text-align: left; white-space: nowrap; }
 .tabella td { text-align: right; padding: 7px 8px; border-bottom: 1px solid var(--griglia); }
 .tabella tr.corrente td { color: var(--testo-tenue); }
 .tabella tr.corrente td:first-child::after { content: " (in corso)"; font-size: 11.5px; }
@@ -261,9 +284,6 @@ input:focus, select:focus { outline: 2px solid var(--accento); outline-offset: -
 
 /* ---------- obiettivo ---------- */
 
-.progresso-titolo { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-.progresso-nome { font-size: 16px; font-weight: 600; }
-.progresso-cifre { font-size: 14px; }
 .progresso-barra { height: 12px; background: var(--superficie-2); border-radius: 6px; overflow: hidden; margin: 8px 0 10px; }
 .progresso-barra div { height: 100%; background: var(--positivo); border-radius: 6px; min-width: 2px; }
 .progresso-righe { margin: 0; padding: 0; list-style: none; font-size: 14px; }
@@ -285,3 +305,95 @@ input:focus, select:focus { outline: 2px solid var(--accento); outline-offset: -
   .aggiunta .bottone-primario { width: 100%; }
   .mese-nome { min-width: 0; flex: 1; font-size: 18px; }
 }
+
+/* ---------- 0.1: riga di sintesi, soglia, titoli ---------- */
+
+.riga-sintesi { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 0; margin: 14px 2px; font-size: 14px; color: var(--testo-tenue); }
+.riga-sintesi strong { color: var(--testo); }
+.separatore { margin: 0 10px; opacity: .5; }
+.segnale-soglia, .segnale-soglia strong { color: var(--avviso-soglia); font-weight: 600; }
+
+.riga-titolo { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.riga-titolo .titolo-riquadro { margin: 0; }
+.riga-titolo > .numero { font-size: 14px; }
+
+.barra-soglia { height: 12px; background: var(--superficie-2); border-radius: 6px; overflow: hidden; }
+.barra-soglia div { height: 100%; background: var(--serie-uscite); border-radius: 6px; min-width: 2px; }
+.barra-soglia.superata div { background: var(--serie-soglia); }
+.nota-soglia { margin: 8px 0 0; font-size: 14px; }
+
+.intestazione-vista { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 14px; }
+.titolo-vista { font-size: 20px; font-weight: 650; margin: 0; letter-spacing: -.01em; }
+
+.collegamento {
+  border: 0; background: none; padding: 0; cursor: pointer;
+  font: inherit; font-size: 13px; color: var(--accento); text-decoration: underline; text-underline-offset: 2px;
+}
+
+/* ---------- contatore delle notifiche ---------- */
+
+.contatore {
+  display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 4px;
+  border-radius: 999px; background: var(--serie-soglia); color: #fff;
+  font-size: 11px; font-weight: 700; line-height: 18px; text-align: center;
+}
+
+/* ---------- avvisi a schermo e notifiche ---------- */
+
+#avvisi-schermo:not(:empty) { margin-bottom: 16px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+
+.avviso-schermo, .notifica {
+  display: flex; gap: 12px; align-items: flex-start; width: 100%;
+  border-radius: var(--raggio); padding: 12px 14px;
+  border: 1px solid var(--bordo); border-left-width: 4px;
+  background: var(--superficie);
+}
+.avviso-schermo { box-shadow: var(--ombra); align-items: center; }
+.avviso-schermo.tipo-soglia { background: var(--avviso-soglia-tenue); border-color: var(--avviso-soglia); }
+.avviso-schermo.tipo-rosso { background: var(--negativo-tenue); border-color: var(--negativo); }
+.notifica.tipo-soglia { border-left-color: var(--avviso-soglia); }
+.notifica.tipo-rosso { border-left-color: var(--negativo); }
+.notifica + .notifica { margin-top: 8px; }
+.notifica.letta { border-left-color: var(--bordo); opacity: .75; }
+.notifica.letta .avviso-icona { color: var(--testo-tenue); }
+
+.avviso-icona { font-size: 18px; line-height: 1.3; width: 20px; text-align: center; flex: none; }
+.tipo-soglia .avviso-icona { color: var(--avviso-soglia); }
+.tipo-rosso .avviso-icona { color: var(--negativo); }
+
+.avviso-testo { flex: 1; min-width: 0; font-size: 14px; }
+.avviso-testo strong { display: block; }
+
+.notifica-corpo { flex: 1; min-width: 0; font-size: 14px; }
+.notifica-testa { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 2px; }
+.notifica-quando { font-size: 12px; color: var(--testo-tenue); }
+.notifica-azioni { display: flex; gap: 16px; margin-top: 6px; }
+
+/* ---------- grafico del mese ---------- */
+
+.titolone { margin-bottom: 14px; }
+.titolone-frase { font-size: 15px; color: var(--testo-tenue); }
+.titolone-numero { font-size: 34px; font-weight: 700; letter-spacing: -.02em; line-height: 1.2; }
+.titolone-note { font-size: 13.5px; color: var(--testo-tenue); margin-top: 4px; }
+.titolone-note strong { color: var(--testo); }
+
+.grafico .linea-entrate, .grafico .linea-uscite { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.linea-entrate { stroke: var(--serie-entrate); fill: none; stroke-width: 2; }
+.linea-uscite { stroke: var(--serie-uscite); fill: none; stroke-width: 2; }
+.linea-soglia { stroke: var(--serie-soglia); stroke-width: 2; stroke-dasharray: 6 4; }
+.linea-previste { stroke: var(--serie-entrate); stroke-width: 1.5; stroke-dasharray: 2 4; }
+.punto-entrate { fill: var(--serie-entrate); stroke: var(--superficie); stroke-width: 2; }
+.punto-uscite { fill: var(--serie-uscite); stroke: var(--superficie); stroke-width: 2; }
+.punto-superamento { fill: var(--superficie); stroke: var(--serie-soglia); stroke-width: 2.5; }
+.area-pos { fill: var(--serie-entrate); opacity: .10; }
+.area-neg { fill: var(--negativo); opacity: .14; }
+.etichetta-linea { font-size: 12px; font-weight: 600; fill: var(--testo); }
+.nota-grafico { font-size: 11.5px; fill: var(--testo-tenue); paint-order: stroke; stroke: var(--superficie); stroke-width: 4px; }
+.mirino { stroke: var(--testo-tenue); stroke-width: 1; stroke-dasharray: 3 3; }
+
+.legenda { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 10px; font-size: 12.5px; color: var(--testo-tenue); }
+.voce-legenda { display: inline-flex; align-items: center; gap: 6px; }
+
+.grafico .colonna { cursor: pointer; }
+.grafico .colonna.scelta .sfondo-colonna { fill: var(--accento-tenue); }
+#grafico-andamento { margin-bottom: 14px; }

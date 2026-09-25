@@ -14,27 +14,30 @@
     <span id="stato-salvataggio" class="stato-salvataggio" aria-live="polite"></span>
   </div>
   <nav class="schede" role="tablist">
-    <button class="scheda attiva" data-vista="mese" role="tab">Mese</button>
-    <button class="scheda" data-vista="andamento" role="tab">Andamento</button>
-    <button class="scheda" data-vista="obiettivo" role="tab">Obiettivo</button>
+    <button class="scheda attiva" data-vista="giorni" role="tab">Giorno per giorno</button>
+    <button class="scheda" data-vista="mese" role="tab">Mese</button>
+    <button class="scheda" data-vista="grafico" role="tab">Grafico</button>
+    <button class="scheda" data-vista="notifiche" role="tab">Notifiche <span id="contatore-notifiche" class="contatore" hidden></span></button>
+    <button class="scheda" data-vista="impostazioni" role="tab">Impostazioni</button>
   </nav>
 </header>
 
 <main>
 
-  <!-- MESE -->
-  <section id="vista-mese" class="vista">
+  <!-- AVVISI A SCHERMO: compaiono quando scatta una soglia, restano finche' non li chiudi -->
+  <div id="avvisi-schermo" aria-live="assertive"></div>
 
-    <div class="navigatore-mese">
-      <button id="mese-prima" class="bottone-icona" title="Mese precedente" aria-label="Mese precedente">‹</button>
-      <h2 id="mese-nome" class="mese-nome"></h2>
-      <button id="mese-dopo" class="bottone-icona" title="Mese successivo" aria-label="Mese successivo">›</button>
-      <button id="mese-oggi" class="bottone-leggero" hidden>Torna a questo mese</button>
-    </div>
+  <div id="navigatore-mese" class="navigatore-mese">
+    <button id="mese-prima" class="bottone-icona" title="Mese precedente" aria-label="Mese precedente">‹</button>
+    <h2 id="mese-nome" class="mese-nome"></h2>
+    <button id="mese-dopo" class="bottone-icona" title="Mese successivo" aria-label="Mese successivo">›</button>
+    <button id="mese-oggi" class="bottone-leggero" hidden>Torna a questo mese</button>
+  </div>
+
+  <!-- 1. GIORNO PER GIORNO -->
+  <section id="vista-giorni" class="vista">
 
     <div id="suggerimento-stipendio" class="suggerimento" hidden></div>
-
-    <div id="riquadri-mese" class="riquadri"></div>
 
     <form id="form-movimento" class="riquadro aggiunta" autocomplete="off">
       <div class="interruttore" role="radiogroup" aria-label="Tipo di movimento">
@@ -42,45 +45,80 @@
         <label><input type="radio" name="tipo" value="entrata"><span>Entrata</span></label>
       </div>
       <input name="importo" class="campo-importo" placeholder="0,00 €" inputmode="decimal" required aria-label="Importo">
+      <input name="descrizione" class="campo-largo" placeholder="Causale (es. spesa Esselunga)" maxlength="300" aria-label="Causale">
       <input name="categoria" class="campo-categoria" list="elenco-categorie" placeholder="Categoria" required maxlength="60" aria-label="Categoria">
       <datalist id="elenco-categorie"></datalist>
-      <input name="descrizione" class="campo-largo" placeholder="Descrizione (facoltativa)" maxlength="300" aria-label="Descrizione">
       <input name="data" type="date" class="campo-data" required aria-label="Data">
       <button type="submit" class="bottone-primario" id="bottone-salva">Aggiungi</button>
       <button type="button" class="bottone-leggero" id="bottone-annulla" hidden>Annulla</button>
     </form>
 
+    <div id="riga-sintesi" class="riga-sintesi"></div>
+
+    <section class="riquadro">
+      <div id="elenco-giorni"></div>
+    </section>
+  </section>
+
+  <!-- 2. MESE -->
+  <section id="vista-mese" class="vista" hidden>
+    <div id="riquadri-mese" class="riquadri"></div>
+    <section id="riquadro-soglia" class="riquadro"></section>
     <div class="due-colonne">
       <section class="riquadro">
         <h3 class="titolo-riquadro">Dove sono andati i soldi</h3>
         <div id="uscite-categorie"></div>
       </section>
       <section class="riquadro">
-        <h3 class="titolo-riquadro">Movimenti del mese</h3>
-        <div id="elenco-movimenti"></div>
+        <h3 class="titolo-riquadro">Cosa e' entrato</h3>
+        <div id="elenco-entrate"></div>
       </section>
     </div>
+    <section id="riquadro-traguardo" class="riquadro"></section>
   </section>
 
-  <!-- ANDAMENTO -->
-  <section id="vista-andamento" class="vista" hidden>
+  <!-- 3. GRAFICO -->
+  <section id="vista-grafico" class="vista" hidden>
     <section class="riquadro">
-      <h3 class="titolo-riquadro">Quanto e' avanzato ogni mese</h3>
-      <p class="spiegazione">Entrate meno uscite. Sotto la linea, i mesi in cui hai speso piu' di quanto e' entrato.</p>
-      <div id="grafico-andamento" class="grafico"></div>
+      <div id="titolone" class="titolone"></div>
+      <div id="grafico-mese" class="grafico"></div>
+      <div id="legenda-mese" class="legenda"></div>
     </section>
     <section class="riquadro">
-      <h3 class="titolo-riquadro">Mese per mese</h3>
+      <h3 class="titolo-riquadro">I mesi a confronto</h3>
+      <p class="spiegazione">Quanto e' avanzato ogni mese. Sotto la linea, i mesi in cui hai speso piu' di quanto e' entrato.</p>
+      <div id="grafico-andamento" class="grafico"></div>
       <div id="tabella-andamento"></div>
     </section>
   </section>
 
-  <!-- OBIETTIVO -->
-  <section id="vista-obiettivo" class="vista" hidden>
+  <!-- NOTIFICHE -->
+  <section id="vista-notifiche" class="vista" hidden>
+    <div class="intestazione-vista">
+      <h2 class="titolo-vista">Notifiche</h2>
+      <button id="segna-lette" class="bottone-leggero" hidden>Segna tutte come lette</button>
+    </div>
+    <div id="elenco-notifiche"></div>
+  </section>
+
+  <!-- IMPOSTAZIONI -->
+  <section id="vista-impostazioni" class="vista" hidden>
+
+    <section class="riquadro">
+      <h3 class="titolo-riquadro">Soglia di sicurezza</h3>
+      <p class="spiegazione">Fino a questa cifra di uscite nel mese non ti disturbo. Quando la superi, compare un avviso
+        e lo ritrovi fra le notifiche. Ti avviso anche se il mese va in rosso, cioe' se spendi piu' di quanto entra.</p>
+      <form id="form-soglia" class="riga-modulo" autocomplete="off">
+        <input name="soglia" inputmode="decimal" placeholder="1.600,00 €" class="campo-importo" aria-label="Soglia">
+        <button type="submit" class="bottone-primario">Salva</button>
+        <button type="button" id="soglia-togli" class="bottone-leggero" hidden>Togli</button>
+      </form>
+      <p id="soglia-consiglio" class="spiegazione piccola"></p>
+    </section>
 
     <section class="riquadro">
       <h3 class="titolo-riquadro">Quanto mettere da parte ogni mese</h3>
-      <p class="spiegazione">Una percentuale di quello che entra. Nella vista Mese vedrai se ci sei arrivato.</p>
+      <p class="spiegazione">Una percentuale di quello che entra. Nella schermata Mese vedrai se ci sei arrivato.</p>
       <form id="form-percentuale" class="riga-modulo">
         <label class="etichetta-in-linea">
           <input name="percentuale" type="number" min="1" max="100" step="0.5" placeholder="20" class="campo-corto"> %
@@ -92,7 +130,7 @@
 
     <section class="riquadro">
       <h3 class="titolo-riquadro">Un traguardo</h3>
-      <div id="progresso-obiettivo"></div>
+      <p class="spiegazione">Una cifra da raggiungere. A che punto sei lo vedi nella schermata Mese.</p>
       <form id="form-obiettivo" class="modulo-obiettivo" autocomplete="off">
         <label>Per cosa<input name="nome" maxlength="100" placeholder="Fondo per gli imprevisti"></label>
         <label>Quanto<input name="importo" inputmode="decimal" placeholder="5.000,00 €" required></label>

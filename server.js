@@ -12,10 +12,17 @@ const FILE_DATI = path.join(CARTELLA, 'dati.json');
 const FILE_BACKUP = path.join(CARTELLA, 'dati.backup.json');
 const PUBBLICA = path.join(CARTELLA, 'public');
 
+// Gli stessi calcoli che usa la pagina: un posto solo per le regole.
+const conti = require('./public/conti.js');
+
 const TIPI = ['entrata', 'uscita'];
 
 function vuoto() {
-  return { movimenti: [], impostazioni: { percentualeObiettivo: null, obiettivo: null } };
+  return {
+    movimenti: [],
+    impostazioni: { percentualeObiettivo: null, obiettivo: null, soglia: null },
+    notifiche: [],
+  };
 }
 
 // ---------- lettura e scrittura dei dati ----------
@@ -25,6 +32,9 @@ function leggiDati() {
     const dati = JSON.parse(fs.readFileSync(FILE_DATI, 'utf8'));
     if (!Array.isArray(dati.movimenti)) dati.movimenti = [];
     if (!dati.impostazioni || typeof dati.impostazioni !== 'object') dati.impostazioni = vuoto().impostazioni;
+    // I dati della versione 0.0 non hanno ne' soglia ne' notifiche.
+    if (!('soglia' in dati.impostazioni)) dati.impostazioni.soglia = null;
+    if (!Array.isArray(dati.notifiche)) dati.notifiche = [];
     return dati;
   } catch (err) {
     if (err.code === 'ENOENT') return vuoto();
@@ -97,6 +107,10 @@ function normalizzaImpostazioni(corpo, vecchie) {
       corpo.percentualeObiettivo === null || corpo.percentualeObiettivo === '' || !(p > 0 && p <= 100)
         ? null : Math.round(p * 10) / 10;
   }
+  if ('soglia' in corpo) {
+    risultato.soglia = corpo.soglia === null || corpo.soglia === '' ? null : centesimi(corpo.soglia);
+    if (corpo.soglia && risultato.soglia === null) throw new Errore400('Soglia non valida');
+  }
   if ('obiettivo' in corpo) {
     const o = corpo.obiettivo;
     if (!o) {
@@ -117,6 +131,27 @@ function normalizzaImpostazioni(corpo, vecchie) {
 }
 
 class Errore400 extends Error {}
+
+// ---------- avvisi ----------
+
+/* Dopo ogni modifica guardo se i mesi toccati meritano un avviso.
+   Solo il mese in corso e quello prima: se oggi segni una spesa di tre mesi
+   fa, un avviso su un mese chiuso da un pezzo non serve a nessuno. Il mese
+   prima si', perche' le ultime spese si segnano spesso nei primi giorni. */
+function generaAvvisi(dati, mesiToccati) {
+  const questo = conti.meseDi(oggiIso());
+  const precedente = conti.spostaMese(questo, -1);
+  const nuovi = [];
+  for (const mese of new Set(mesiToccati)) {
+    if (mese !== questo && mese !== precedente) continue;
+    for (const a of conti.controllaAvvisi(dati.movimenti, dati.impostazioni, mese, dati.notifiche)) {
+      const notifica = Object.assign({ id: nuovoId(), creata: new Date().toISOString(), letta: false }, a);
+      dati.notifiche.unshift(notifica);
+      nuovi.push(notifica);
+    }
+  }
+  return nuovi;
+}
 
 // ---------- utilita' http ----------
 
@@ -187,8 +222,20 @@ const server = http.createServer(async (req, res) => {
       const dati = leggiDati();
       const corpo = await leggiCorpo(req);
       dati.impostazioni = normalizzaImpostazioni(corpo, dati.impostazioni);
+      // Una soglia appena abbassata puo' essere gia' superata.
+      const nuoveNotifiche = generaAvvisi(dati, [conti.meseDi(oggiIso())]);
       scriviDati(dati);
-      return rispondiJson(res, 200, dati.impostazioni);
+      return rispondiJson(res, 200, { impostazioni: dati.impostazioni, nuoveNotifiche });
+    }
+
+    // /api/notifiche/lette -> segna come lette (tutte, o solo quelle indicate)
+    if (percorso === '/api/notifiche/lette' && req.method === 'POST') {
+      const dati = leggiDati();
+      const corpo = await leggiCorpo(req);
+      const quali = Array.isArray(corpo.ids) ? new Set(corpo.ids) : null;
+      for (const n of dati.notifiche) if (!quali || quali.has(n.id)) n.letta = true;
+      scriviDati(dati);
+      return rispondiJson(res, 200, { notifiche: dati.notifiche });
     }
 
     const pezzi = percorso.split('/').filter(Boolean); // ['api', 'movimenti', id?]
@@ -199,17 +246,20 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && !id) {
       const elemento = normalizzaMovimento(await leggiCorpo(req), null);
       dati.movimenti.unshift(elemento);
+      const nuoveNotifiche = generaAvvisi(dati, [conti.meseDi(elemento.data)]);
       scriviDati(dati);
-      return rispondiJson(res, 201, elemento);
+      return rispondiJson(res, 201, { movimento: elemento, nuoveNotifiche });
     }
 
     if (req.method === 'PUT' && id) {
       const indice = dati.movimenti.findIndex((e) => e.id === id);
       if (indice === -1) return rispondiJson(res, 404, { errore: 'Non trovato' });
       const unito = Object.assign({}, dati.movimenti[indice], await leggiCorpo(req));
+      const primaEra = conti.meseDi(dati.movimenti[indice].data);
       dati.movimenti[indice] = normalizzaMovimento(unito, dati.movimenti[indice]);
+      const nuoveNotifiche = generaAvvisi(dati, [primaEra, conti.meseDi(dati.movimenti[indice].data)]);
       scriviDati(dati);
-      return rispondiJson(res, 200, dati.movimenti[indice]);
+      return rispondiJson(res, 200, { movimento: dati.movimenti[indice], nuoveNotifiche });
     }
 
     if (req.method === 'DELETE' && id) {

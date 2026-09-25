@@ -225,3 +225,119 @@ function stipendioDaCopiare(movimenti, mese) {
     data: mese + '-' + String(giorno).padStart(2, '0'),
   };
 }
+
+// ---------------------------------------------------------------- soglia e avvisi
+
+/* Le entrate con cui confrontare le uscite del mese.
+   Il problema: l'affitto esce il primo del mese, lo stipendio entra il 27.
+   Contando solo quello che e' gia' entrato, ogni mese sembrerebbe in rosso
+   per tre settimane. Quindi, se lo stipendio di questo mese non c'e' ancora
+   ma c'era il mese prima, lo conto come "atteso" con lo stesso importo. */
+function entrateDiRiferimento(movimenti, mese) {
+  const r = riepilogoMese(movimenti, mese);
+  const proposta = stipendioDaCopiare(movimenti, mese);
+  const atteso = proposta ? proposta.importo : 0;
+  return { entrate: r.entrate + atteso, gia: r.entrate, stipendioAtteso: atteso };
+}
+
+/* Quanto hai speso rispetto alla soglia. Null se la soglia non c'e'. */
+function statoSoglia(movimenti, mese, soglia) {
+  if (!(soglia > 0)) return null;
+  const speso = riepilogoMese(movimenti, mese).uscite;
+  return {
+    soglia,
+    speso,
+    restano: soglia - speso,
+    superata: speso > soglia,
+    quota: speso / soglia,
+  };
+}
+
+/* Gli avvisi che il mese merita e che non sono ancora stati dati.
+   Due tipi, ciascuno al massimo una volta per mese:
+     'soglia'  le uscite hanno superato la soglia
+     'rosso'   le uscite hanno superato le entrate (contando lo stipendio atteso)
+   Prima della soglia non si avvisa: e' la richiesta. Se dopo l'avviso si
+   corregge una spesa e si torna sotto, l'avviso resta nello storico e non
+   viene ripetuto nello stesso mese. */
+function controllaAvvisi(movimenti, impostazioni, mese, notificheEsistenti) {
+  const gia = (tipo) => (notificheEsistenti || []).some((n) => n.tipo === tipo && n.mese === mese);
+  const nuovi = [];
+  const nome = nomeMese(mese);
+  const Nome = nome.charAt(0).toUpperCase() + nome.slice(1);
+
+  const s = statoSoglia(movimenti, mese, impostazioni && impostazioni.soglia);
+  if (s && s.superata && !gia('soglia')) {
+    nuovi.push({
+      tipo: 'soglia', mese,
+      titolo: 'Soglia superata',
+      testo: Nome + ': hai speso ' + euro(s.speso) + ', oltre la soglia di ' + euro(s.soglia)
+        + ' (' + euro(s.speso - s.soglia) + ' in piu\').',
+    });
+  }
+
+  const rif = entrateDiRiferimento(movimenti, mese);
+  const uscite = riepilogoMese(movimenti, mese).uscite;
+  if (uscite > rif.entrate && uscite > 0 && !gia('rosso')) {
+    const comeEntrate = rif.stipendioAtteso
+      ? 'le entrate previste (' + euro(rif.entrate) + ', contando lo stipendio non ancora arrivato)'
+      : 'le entrate (' + euro(rif.entrate) + ')';
+    nuovi.push({
+      tipo: 'rosso', mese,
+      titolo: 'Mese in rosso',
+      testo: Nome + ': le uscite (' + euro(uscite) + ') hanno superato ' + comeEntrate
+        + ' di ' + euro(uscite - rif.entrate) + '.',
+    });
+  }
+  return nuovi;
+}
+
+// ---------------------------------------------------------------- serie per il grafico
+
+/* Giorno per giorno, quanto e' entrato e uscito dall'inizio del mese.
+   Per il mese in corso si ferma a oggi: il futuro non c'e' ancora. Tranne
+   se hai gia' segnato qualcosa con una data piu' avanti (una bolletta che
+   sai gia' che arrivera'): allora arriva fino a quel giorno, cosi' il
+   grafico torna con i totali del mese.
+   Restituisce [{ giorno, entrate, uscite }] con i valori ACCUMULATI. */
+function serieGiornaliera(movimenti, mese, oggi) {
+  const giorno = oggi || oggiIso();
+  let ultimo = giorniNelMese(mese);
+  if (meseDi(giorno) === mese) {
+    ultimo = Number(giorno.slice(8, 10));
+    for (const m of movimenti) {
+      if (meseDi(m.data) === mese) ultimo = Math.max(ultimo, Number(m.data.slice(8, 10)));
+    }
+  } else if (mese > meseDi(giorno)) ultimo = 0;
+  const perGiorno = Array.from({ length: ultimo + 1 }, () => ({ e: 0, u: 0 }));
+  for (const m of movimenti) {
+    if (meseDi(m.data) !== mese) continue;
+    const g = Number(m.data.slice(8, 10));
+    if (g > ultimo) continue;
+    if (m.tipo === 'entrata') perGiorno[g].e += m.importo; else perGiorno[g].u += m.importo;
+  }
+  const serie = [];
+  let e = 0, u = 0;
+  for (let g = 1; g <= ultimo; g++) {
+    e += perGiorno[g].e; u += perGiorno[g].u;
+    serie.push({ giorno: g, entrate: e, uscite: u });
+  }
+  return serie;
+}
+
+// Il primo giorno in cui le uscite accumulate superano un limite, o null.
+function giornoDiSuperamento(serie, limite) {
+  if (!(limite > 0)) return null;
+  const p = serie.find((s) => s.uscite > limite);
+  return p ? p.giorno : null;
+}
+
+// Il server usa gli stessi calcoli della pagina.
+if (typeof module !== 'undefined') {
+  module.exports = {
+    CATEGORIE_ENTRATE, CATEGORIE_USCITE, leggiImporto, euro, oggiIso, meseDi, spostaMese,
+    nomeMese, riepilogoMese, andamento, mediaAvanzato, progressoObiettivo, meseDiArrivo,
+    stipendioDaCopiare, entrateDiRiferimento, statoSoglia, controllaAvvisi,
+    serieGiornaliera, giornoDiSuperamento,
+  };
+}

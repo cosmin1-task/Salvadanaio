@@ -1,10 +1,11 @@
 # Salvadanaio
 
-**Versione 0.0**
+**Versione 0.1**
 
 Un programma per capire quanto di quello che guadagni riesci a mettere da parte.
 Segni cosa entra e cosa esce; lui ti dice quanto è avanzato ogni mese, che
 percentuale hai risparmiato e quanto ti manca per arrivare a un traguardo.
+Se spendi più di una soglia che scegli tu, ti avvisa.
 
 Gira solo sul tuo computer: niente internet, niente account, niente banca
 collegata. Nessun dato esce da qui. Funziona su macOS, Windows e Linux.
@@ -30,13 +31,14 @@ aperti tutti e due insieme.
 
 ## Come si usa
 
-Ci sono tre viste.
+È pensato per essere aperto mese per mese: in cima alle prime tre schede c'è
+il nome del mese, con le frecce per andare avanti e indietro.
 
-**Mese.** In alto quattro numeri: quanto è entrato (diviso fra stipendio ed
-extra), quanto è uscito, quanto è avanzato e che percentuale hai messo da parte.
-Sotto, il modulo per segnare un movimento: scegli *Uscita* o *Entrata*, scrivi
-l'importo, la categoria e, se vuoi, una descrizione. Con le frecce accanto al
-nome del mese vedi i mesi passati.
+**1. Giorno per giorno.** Qui si segnano le spese: scegli *Uscita* o
+*Entrata*, scrivi l'importo, la causale (per esempio "spesa Esselunga") e la
+categoria. Sotto, l'elenco del mese diviso per giorni, con il totale speso in
+ogni giorno. Una riga in alto riassume: quanto hai speso oggi, quanto nel mese
+e quanto manca alla soglia.
 
 Gli importi si possono scrivere come vuoi: `12,50`, `12.50`, `1.850`, `1850 €`.
 
@@ -47,22 +49,53 @@ dalla volta dopo te la propone lui.
 - Uscite: Casa, Bollette, Spesa, Trasporti, Salute, Ristoranti e svago,
   Abbigliamento, Abbonamenti, Regali, Altro
 
-Se il mese scorso hai segnato lo stipendio e questo mese non ancora, in cima
-compare un avviso che propone di aggiungerlo uguale con un clic. Se è stato
-diverso, premi *Era diverso*: il modulo si prepara e scrivi tu l'importo giusto.
+Quando arriva il giorno di paga e lo stipendio non è ancora segnato, in cima
+compare un avviso che propone di aggiungerlo uguale al mese scorso con un clic.
+Se è stato diverso, premi *Era diverso* e scrivi tu l'importo giusto.
 
-**Andamento.** Un grafico con quanto è avanzato mese per mese: le colonne
-verdi sono i mesi in positivo, quelle rosse i mesi in cui hai speso più di
-quanto è entrato. Passando col mouse su una colonna leggi i dettagli. Sotto,
-la tabella con tutti i mesi e la media.
+**2. Mese.** La vista d'insieme: entrate (divise fra stipendio ed extra),
+uscite, quanto è avanzato e che percentuale hai messo da parte. Sotto, a che
+punto sei con la soglia, dove sono andati i soldi divisi per categoria, cosa
+è entrato, e il traguardo se ne hai scelto uno.
 
-**Obiettivo.** Due cose, tutte e due facoltative:
+**3. Grafico.** In grande, la risposta alla domanda "questo mese sono in
+positivo?". Sotto, un grafico con tre linee sui giorni del mese: le entrate
+che si accumulano, le uscite che si accumulano e la soglia. Finché la linea
+blu delle uscite resta sotto quella verde delle entrate, sei in positivo; il
+giorno in cui passa la soglia è segnato con un cerchio. Passando col mouse
+leggi i numeri di ogni giorno. Più in basso, tutti i mesi a confronto, con
+grafico e tabella: un clic su una colonna porta a quel mese.
 
-- *Una percentuale*, per esempio il 20%. Nella vista Mese vedi se l'hai
-  raggiunta e, se no, quanti euro mancano.
-- *Un traguardo*, per esempio 5.000 € per gli imprevisti entro dicembre. Ti
-  dice a che punto sei, quanto serve al mese per arrivarci in tempo e, al
-  ritmo degli ultimi tre mesi, in che mese ci arrivi davvero.
+**Notifiche.** Lo storico degli avvisi (vedi sotto). Il numero accanto al
+nome della scheda dice quanti non hai ancora letto.
+
+**Impostazioni.** La soglia di sicurezza, la percentuale da mettere da parte
+ogni mese e il traguardo in euro (per esempio 5.000 € per gli imprevisti entro
+dicembre: ti dice quanto serve al mese e, al ritmo attuale, in che mese ci arrivi).
+
+## La soglia di sicurezza e gli avvisi
+
+Nelle Impostazioni scegli una cifra, per esempio 1.600 € se ne guadagni 1.800.
+Vale per tutti i mesi finché non la cambi.
+
+Finché le uscite del mese restano sotto quella cifra, il Salvadanaio sta zitto.
+Appena la superi, in cima alla pagina compare un avviso arancione che resta
+lì finché non premi *Ho capito*, e che ritrovi nella scheda Notifiche.
+
+C'è un secondo avviso, rosso: quando le uscite del mese superano le entrate,
+cioè quando il mese va in rosso.
+
+Tre cose da sapere:
+
+- **Ogni avviso arriva una volta sola per mese.** Se superi la soglia a metà
+  mese, le spese dopo non ne generano altri.
+- **Lo stipendio atteso conta.** L'affitto esce il primo, lo stipendio entra
+  a fine mese: contando solo quello già entrato, ogni mese sarebbe "in rosso"
+  per tre settimane. Quindi, finché lo stipendio del mese non è segnato, il
+  programma conta quello del mese scorso come atteso. Lo stesso vale per la
+  scritta grande nella scheda Grafico.
+- **Gli avvisi sono sullo schermo, non nel Centro Notifiche del Mac.** Le soglie
+  si superano quando segni una spesa, e in quel momento hai la pagina davanti.
 
 ## Cosa intende per "messo da parte"
 
@@ -120,7 +153,8 @@ Il consiglio, per ora, è usarlo da un computer solo.
       public/index.html      la struttura della pagina
       public/stile.css       l'aspetto
       public/app.js          il comportamento: cosa succede quando clicchi
-      public/conti.js        i calcoli: riepiloghi, medie, obiettivo
+      public/conti.js        i calcoli: riepiloghi, medie, obiettivo, soglia, avvisi
+                             (li usano sia la pagina sia server.js)
       prove/                 i controlli automatici
       dati.json              i tuoi dati
       Avvia Salvadanaio.command  il file da cliccare su Mac
@@ -146,8 +180,9 @@ Nella cartella `prove/` ci sono i controlli automatici. Per eseguirli:
 
 Controllano che gli importi vengano letti bene in tutti i modi in cui si
 scrivono, che i riepiloghi del mese tornino al centesimo, che il mese in corso
-non entri nella media e che i conti dell'obiettivo siano giusti anche a cavallo
-dell'anno.
+non entri nella media, che i conti dell'obiettivo siano giusti anche a cavallo
+dell'anno, e che gli avvisi scattino quando devono: una volta sola, e non per
+uno stipendio che deve ancora arrivare.
 
 ## Cosa manca ancora (i prossimi passi)
 
