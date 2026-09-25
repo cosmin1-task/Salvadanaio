@@ -17,6 +17,7 @@
     <button class="scheda attiva" data-vista="giorni" role="tab">Giorno per giorno</button>
     <button class="scheda" data-vista="mese" role="tab">Mese</button>
     <button class="scheda" data-vista="grafico" role="tab">Grafico</button>
+    <button class="scheda" data-vista="fisse" role="tab">Voci fisse</button>
     <button class="scheda" data-vista="notifiche" role="tab">Notifiche <span id="contatore-notifiche" class="contatore" hidden></span></button>
     <button class="scheda" data-vista="impostazioni" role="tab">Impostazioni</button>
   </nav>
@@ -54,6 +55,7 @@
     </form>
 
     <div id="riga-sintesi" class="riga-sintesi"></div>
+    <div id="in-arrivo" class="in-arrivo"></div>
 
     <section class="riquadro">
       <div id="elenco-giorni"></div>
@@ -63,6 +65,7 @@
   <!-- 2. MESE -->
   <section id="vista-mese" class="vista" hidden>
     <div id="riquadri-mese" class="riquadri"></div>
+    <section id="riquadro-conto" class="riquadro"></section>
     <section id="riquadro-soglia" class="riquadro"></section>
     <div class="due-colonne">
       <section class="riquadro">
@@ -90,6 +93,49 @@
       <div id="grafico-andamento" class="grafico"></div>
       <div id="tabella-andamento"></div>
     </section>
+  </section>
+
+  <!-- VOCI FISSE -->
+  <section id="vista-fisse" class="vista" hidden>
+    <div class="intestazione-vista">
+      <h2 class="titolo-vista">Voci fisse</h2>
+    </div>
+    <p class="spiegazione">Quello che torna uguale ogni mese: lo stipendio, l'affitto, gli abbonamenti.
+      Nel suo giorno ogni voce entra da sola fra i movimenti del mese, senza che tu la scriva.</p>
+
+    <section id="conto-fisse" class="riquadro"></section>
+
+    <form id="form-voce" class="riquadro aggiunta" autocomplete="off">
+      <div class="interruttore" role="radiogroup" aria-label="Tipo di voce">
+        <label><input type="radio" name="tipo" value="uscita" checked><span>Spesa</span></label>
+        <label><input type="radio" name="tipo" value="entrata"><span>Entrata</span></label>
+      </div>
+      <input name="importo" class="campo-importo" placeholder="0,00 €" inputmode="decimal" required aria-label="Importo">
+      <input name="nome" class="campo-largo" placeholder="Nome (es. Affitto, Netflix)" maxlength="100" required aria-label="Nome">
+      <input name="categoria" class="campo-categoria" list="elenco-categorie-fisse" placeholder="Categoria" required maxlength="60" aria-label="Categoria">
+      <datalist id="elenco-categorie-fisse"></datalist>
+      <label class="etichetta-in-linea piccola">il giorno
+        <input name="giorno" type="number" min="1" max="31" required class="campo-giorno" aria-label="Giorno del mese"></label>
+      <select name="da" class="campo-da" aria-label="Da quando">
+        <option value="questo">da questo mese</option>
+        <option value="prossimo">dal mese prossimo</option>
+      </select>
+      <button type="submit" class="bottone-primario" id="bottone-salva-voce">Aggiungi</button>
+      <button type="button" class="bottone-leggero" id="bottone-annulla-voce" hidden>Annulla</button>
+    </form>
+    <p id="nota-voce" class="spiegazione piccola nota-modulo">Se questo mese l'hai gia' segnata a mano, la riconosco (stesso importo e categoria) e non la raddoppio.
+      Giorni 29, 30 e 31: nei mesi piu' corti vale l'ultimo giorno.</p>
+
+    <div class="due-colonne uguali">
+      <section class="riquadro">
+        <h3 class="titolo-riquadro">Entrate fisse</h3>
+        <div id="elenco-fisse-entrate"></div>
+      </section>
+      <section class="riquadro">
+        <h3 class="titolo-riquadro">Spese fisse</h3>
+        <div id="elenco-fisse-uscite"></div>
+      </section>
+    </div>
   </section>
 
   <!-- NOTIFICHE -->

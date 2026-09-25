@@ -7,7 +7,8 @@ vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(__dirname + '/../public/conti.js', 'utf8')
   + '\nglobalThis.API = { leggiImporto, euro, riepilogoMese, andamento, mediaAvanzato,'
   + ' progressoObiettivo, meseDiArrivo, stipendioDaCopiare, spostaMese, nomeMese,'
-  + ' entrateDiRiferimento, statoSoglia, controllaAvvisi, serieGiornaliera, giornoDiSuperamento };', ctx);
+  + ' entrateDiRiferimento, statoSoglia, controllaAvvisi, serieGiornaliera, giornoDiSuperamento,'
+  + ' dataDellaVoce, fisseDaCreare, fisseAttese, movimentoSimile, totaliFisse, previsioneMese };', ctx);
 const C = ctx.API;
 
 let errori = 0, prove = 0;
@@ -116,8 +117,8 @@ uguale(C.statoSoglia(mov, '2026-08', 110000).superata, false, 'arrivare esattame
 uguale(C.statoSoglia(mov, '2026-08', null), null, 'senza soglia, niente stato');
 
 console.log('\nEntrate di riferimento');
-uguale(C.entrateDiRiferimento(mov, '2026-09'), { entrate: 185000, gia: 0, stipendioAtteso: 185000 }, 'settembre: stipendio non arrivato, conta quello di agosto');
-uguale(C.entrateDiRiferimento(mov, '2026-08').stipendioAtteso, 0, 'agosto: lo stipendio c\'e\', nessun atteso');
+uguale(C.entrateDiRiferimento(mov, '2026-09'), { entrate: 185000, gia: 0, attese: 185000, daFisse: 0, daStipendioScorso: 185000 }, 'settembre: stipendio non arrivato, conta quello di agosto');
+uguale(C.entrateDiRiferimento(mov, '2026-08').attese, 0, 'agosto: lo stipendio c\'e\', nessun atteso');
 
 console.log('\nAvvisi');
 const imp = { soglia: 60000 };
@@ -147,6 +148,56 @@ const sb = C.serieGiornaliera(conBolletta, '2026-09', '2026-09-25');
 uguale([sb.length, sb[sb.length - 1].uscite], [28, 75000], 'una spesa gia\' segnata per il 28 allunga il mese in corso fino al 28');
 uguale(C.giornoDiSuperamento(serie, 100000), 20, 'la soglia di 1.000 si supera il 20 agosto');
 uguale(C.giornoDiSuperamento(serie, 500000), null, 'una soglia mai superata');
+
+console.log('\nVoci fisse');
+const affitto = { id: 'aff', tipo: 'uscita', nome: 'Affitto', importo: 70000, categoria: 'Casa', giorno: 1, da: '2026-08', mesiFatti: [] };
+const stip = { id: 'sti', tipo: 'entrata', nome: 'Stipendio', importo: 185000, categoria: 'Stipendio', giorno: 27, da: '2026-08', mesiFatti: ['2026-08'] };
+const netflix = { id: 'net', tipo: 'uscita', nome: 'Netflix', importo: 1299, categoria: 'Abbonamenti', giorno: 31, da: '2026-09', mesiFatti: [] };
+const fisse = [affitto, stip, netflix];
+uguale(C.dataDellaVoce(netflix, '2026-09'), '2026-09-30', 'il 31 a settembre diventa il 30');
+uguale(C.dataDellaVoce(netflix, '2027-02'), '2027-02-28', 'e a febbraio il 28');
+const daCreare = C.fisseDaCreare(fisse, '2026-09-25');
+uguale(daCreare.map((c) => c.voce.id + ' ' + c.movimento.data), ['aff 2026-08-01', 'aff 2026-09-01'],
+  'il 25 settembre: affitto di agosto (recuperato) e di settembre; stipendio e Netflix non ancora');
+uguale(daCreare[0].movimento, { tipo: 'uscita', importo: 70000, categoria: 'Casa', descrizione: 'Affitto', data: '2026-08-01', fissaId: 'aff' },
+  'il movimento creato porta il legame con la voce');
+uguale(C.fisseDaCreare([Object.assign({}, affitto, { mesiFatti: ['2026-08', '2026-09'] })], '2026-09-25').length, 0,
+  'un mese gia\' fatto non si rifa\' (anche se il movimento e\' stato cancellato)');
+uguale(C.fisseDaCreare([Object.assign({}, affitto, { da: '2026-10' })], '2026-09-25').length, 0, 'una voce che parte il mese prossimo aspetta');
+uguale(C.fisseDaCreare(fisse, '2026-09-30').map((c) => c.voce.id), ['aff', 'aff', 'sti', 'net'], 'il 30 settembre arrivano anche stipendio e Netflix');
+
+const attese = C.fisseAttese(fisse, '2026-09', '2026-09-25');
+uguale(attese.map((a) => a.voce.id + ' ' + a.data), ['sti 2026-09-27', 'net 2026-09-30'], 'attese a settembre: stipendio il 27 e Netflix il 30');
+uguale(C.fisseAttese(fisse, '2026-10', '2026-09-25').length, 3, 'in un mese futuro sono tutte attese');
+uguale(C.fisseAttese(fisse, '2026-08', '2026-09-25').length, 0, 'in un mese passato nessuna');
+
+const rifF = C.entrateDiRiferimento(mov, '2026-09', fisse, '2026-09-25');
+uguale([rifF.daFisse, rifF.daStipendioScorso], [185000, 0], 'con lo stipendio fisso non serve la stima dal mese scorso');
+
+const manuale = [{ tipo: 'entrata', importo: 185000, categoria: 'Stipendio', data: '2026-09-27' }];
+uguale(!!C.movimentoSimile(manuale, stip, '2026-09'), true, 'riconosce lo stipendio segnato a mano');
+uguale(C.movimentoSimile(manuale, Object.assign({}, stip, { importo: 190000 }), '2026-09'), null, 'importo diverso: non e\' lo stesso');
+const musica = [{ tipo: 'uscita', importo: 1299, categoria: 'Abbonamenti', descrizione: 'Musica', data: '2026-09-15' }];
+uguale(C.movimentoSimile(musica, netflix, '2026-09'), null, 'stesso importo e categoria ma causale diversa: non e\' Netflix');
+uguale(!!C.movimentoSimile([Object.assign({}, musica[0], { descrizione: 'netflix settembre' })], netflix, '2026-09'), true, 'la causale "netflix settembre" invece si\'');
+
+uguale(C.totaliFisse(fisse), { entrate: 185000, uscite: 71299, restano: 113701 }, 'un mese tipo: 1.850 - 712,99 = 1.137,01');
+
+// settembre: affitto gia' creato, spesa variabile, stipendio e Netflix attesi
+const movSet = [
+  { tipo: 'uscita', importo: 70000, categoria: 'Casa', data: '2026-09-01', fissaId: 'aff' },
+  { tipo: 'uscita', importo: 20000, categoria: 'Spesa', data: '2026-09-10' },
+];
+const fisseSet = [Object.assign({}, affitto, { mesiFatti: ['2026-08', '2026-09'] }), stip, netflix];
+const prev = C.previsioneMese(movSet, fisseSet, '2026-09', '2026-09-25');
+uguale([prev.entrateFisse, prev.usciteFisse, prev.usciteVariabili], [185000, 71299, 20000], 'fisse (fatte + attese) e variabili');
+uguale(prev.avanzato, 185000 - 71299 - 20000, 'a fine mese restano 1.850 - 712,99 - 200');
+uguale(C.previsioneMese(mov, [], '2026-07', '2026-09-25').avanzato, C.riepilogoMese(mov, '2026-07').avanzato, 'per un mese chiuso la previsione e\' il conto vero');
+uguale(C.previsioneMese(mov, [], '2026-09', '2026-09-25').stipendioStimato, 185000, 'senza voci fisse, il mese in corso stima lo stipendio dal mese scorso');
+const rs = C.riepilogoMese(movSet, '2026-09');
+uguale([rs.usciteFisse, rs.usciteVariabili], [70000, 20000], 'il riepilogo distingue fisse e variabili');
+const avF = C.controllaAvvisi(movSet.concat([{ tipo: 'uscita', importo: 90000, categoria: 'Altro', data: '2026-09-20' }]), {}, '2026-09', [], fisseSet, '2026-09-25');
+uguale(avF.length, 0, '1.800 spesi, stipendio fisso di 1.850 atteso: niente rosso');
 
 console.log('\nMesi');
 uguale(C.spostaMese('2026-12', 1), '2027-01', 'dicembre + 1 = gennaio dell\'anno dopo');

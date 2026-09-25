@@ -2,6 +2,47 @@
 
 Ogni versione del Salvadanaio, dalla più recente alla più vecchia.
 
+## 0.2 - 25 settembre 2026
+
+Le voci fisse: stipendio, affitto e abbonamenti si scrivono una volta sola.
+
+**Aggiunto**
+
+- Scheda *Voci fisse*: entrate e spese che tornano uguali ogni mese, ognuna
+  con importo, nome, categoria e giorno del mese. In cima, il conto di un
+  mese tipo: entrate fisse, spese fisse e quanto resta per tutto il resto.
+- Nel loro giorno le voci entrano da sole fra i movimenti del mese, con
+  l'etichetta "fissa". Se il programma resta chiuso, alla riapertura
+  recupera quelle arrivate nel frattempo.
+- Nella schermata Mese, il riquadro *Quanto ti resta*: entrate fisse, meno
+  spese fisse, meno spese variabili, contando anche quelle ancora attese.
+- In Giorno per giorno, la riga *In arrivo* con le voci fisse del mese che
+  devono ancora arrivare.
+- La soglia avvisa in anticipo, nella schermata Mese, se le spese fisse
+  ancora attese la faranno superare.
+- Nell'avviso dello stipendio, il bottone *Rendilo fisso*.
+
+**Cambiato**
+
+- La scritta grande del Grafico dice come chiuderà il mese contando tutte le
+  voci fisse attese, non solo lo stipendio.
+- L'avviso di mese in rosso conta le entrate fisse attese; la stima dallo
+  stipendio del mese scorso resta solo se lo stipendio non è una voce fissa.
+
+**Scelte tecniche**
+
+- Le voci fisse diventano movimenti veri, non numeri calcolati al volo: la
+  soglia, i grafici e le medie funzionano senza eccezioni, e cambiare
+  l'affitto domani non riscrive i mesi passati.
+- Ogni voce ricorda i mesi già sistemati. Un movimento fisso cancellato non
+  ricompare, e riaprire la pagina dieci volte non crea doppioni.
+- Una voce nuova riconosce il movimento già segnato a mano nello stesso mese
+  (stesso tipo, categoria e importo, causale vuota o simile al nome) e lo
+  adotta invece di raddoppiarlo. La causale conta: due abbonamenti da 12,99
+  sono due cose diverse.
+- I dati della versione 0.1 si aprono senza fare nulla: l'elenco delle voci
+  fisse parte vuoto.
+
 ## 0.1 - 25 settembre 2026
 
 Tre schermate per il mese, una soglia di sicurezza e le notifiche.

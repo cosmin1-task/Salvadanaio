@@ -97,7 +97,7 @@ function giorniNelMese(mese) {
    La percentuale e' null quando non e' entrato nulla: dividere per zero non
    ha senso, e scrivere 0% sarebbe falso. */
 function riepilogoMese(movimenti, mese) {
-  let entrate = 0, uscite = 0, stipendio = 0, numero = 0;
+  let entrate = 0, uscite = 0, stipendio = 0, numero = 0, entrateFisse = 0, usciteFisse = 0;
   const perCategoria = {};
   for (const m of movimenti) {
     if (meseDi(m.data) !== mese) continue;
@@ -105,8 +105,10 @@ function riepilogoMese(movimenti, mese) {
     if (m.tipo === 'entrata') {
       entrate += m.importo;
       if (m.categoria === 'Stipendio') stipendio += m.importo;
+      if (m.fissaId) entrateFisse += m.importo;
     } else {
       uscite += m.importo;
+      if (m.fissaId) usciteFisse += m.importo;
       const c = m.categoria || 'Altro';
       perCategoria[c] = (perCategoria[c] || 0) + m.importo;
     }
@@ -118,6 +120,11 @@ function riepilogoMese(movimenti, mese) {
     stipendio,
     extra: entrate - stipendio,
     uscite,
+    // "fisse" sono i movimenti nati da una voce fissa, il resto e' variabile
+    entrateFisse,
+    usciteFisse,
+    entrateVariabili: entrate - entrateFisse,
+    usciteVariabili: uscite - usciteFisse,
     avanzato,
     percentuale: entrate > 0 ? (avanzato / entrate) * 100 : null,
     perCategoria: Object.entries(perCategoria)
@@ -226,6 +233,117 @@ function stipendioDaCopiare(movimenti, mese) {
   };
 }
 
+// ---------------------------------------------------------------- voci fisse
+
+/* Una voce fissa e' qualcosa che torna uguale ogni mese: lo stipendio,
+   l'affitto, un abbonamento.
+     { id, tipo, nome, importo, categoria, giorno, da, mesiFatti }
+   giorno     il giorno del mese in cui arriva (29, 30, 31: l'ultimo giorno
+              nei mesi piu' corti)
+   da         il primo mese in cui vale ('AAAA-MM')
+   mesiFatti  i mesi gia' sistemati. Quando il giorno arriva, il programma
+              crea da solo il movimento e segna il mese come fatto. Se poi
+              lo cancelli (quel mese non l'hai pagato), il mese resta fatto
+              e il movimento non ricompare. */
+
+// La data della voce in un certo mese.
+function dataDellaVoce(voce, mese) {
+  const g = Math.min(Math.max(1, Number(voce.giorno) || 1), giorniNelMese(mese));
+  return mese + '-' + String(g).padStart(2, '0');
+}
+
+const voceValeNelMese = (voce, mese) => !!voce && E_UNA_DATA((voce.da || '') + '-01') && mese >= voce.da;
+const meseFatto = (voce, mese) => (voce.mesiFatti || []).includes(mese);
+
+/* I movimenti che le voci fisse devono creare oggi.
+   Recupera anche i mesi persi: se il programma e' rimasto chiuso da
+   agosto, crea agosto e settembre. Mai nel futuro.
+   Restituisce [{ voce, mese, movimento }]. */
+function fisseDaCreare(fisse, oggi) {
+  const giorno = oggi || oggiIso();
+  const questo = meseDi(giorno);
+  const risultato = [];
+  for (const voce of fisse || []) {
+    if (!voceValeNelMese(voce, voce.da)) continue;
+    for (let n = numeroMese(voce.da); n <= numeroMese(questo); n++) {
+      const mese = meseDaNumero(n);
+      if (meseFatto(voce, mese)) continue;
+      const data = dataDellaVoce(voce, mese);
+      if (data > giorno) continue;
+      risultato.push({
+        voce, mese,
+        movimento: {
+          tipo: voce.tipo, importo: voce.importo, categoria: voce.categoria,
+          descrizione: voce.nome, data, fissaId: voce.id,
+        },
+      });
+    }
+  }
+  return risultato;
+}
+
+/* Le voci fisse che in un mese devono ancora arrivare.
+   Per il mese in corso: quelle con il giorno dopo oggi. Per un mese futuro:
+   tutte. Per un mese passato: nessuna (sono gia' state create). */
+function fisseAttese(fisse, mese, oggi) {
+  const giorno = oggi || oggiIso();
+  if (mese < meseDi(giorno)) return [];
+  return (fisse || [])
+    .filter((v) => voceValeNelMese(v, mese) && !meseFatto(v, mese) && dataDellaVoce(v, mese) > giorno)
+    .map((v) => ({ voce: v, data: dataDellaVoce(v, mese) }))
+    .sort((a, b) => (a.data < b.data ? -1 : 1));
+}
+
+/* Quando crei una voce fissa a meta' mese, magari quel movimento l'avevi
+   gia' segnato a mano. Lo cerco: stesso tipo, stessa categoria, stesso
+   importo, nello stesso mese, non gia' legato a un'altra voce, e con una
+   causale vuota o che somiglia al nome della voce. Due abbonamenti da
+   12,99 nella stessa categoria sono cose diverse. */
+function movimentoSimile(movimenti, voce, mese) {
+  const nome = String(voce.nome || '').trim().toLowerCase();
+  const somiglia = (causale) => {
+    const c = String(causale || '').trim().toLowerCase();
+    return !c || !nome || c.includes(nome) || nome.includes(c);
+  };
+  return (movimenti || []).find((m) => !m.fissaId && meseDi(m.data) === mese && m.tipo === voce.tipo
+    && m.categoria === voce.categoria && m.importo === voce.importo && somiglia(m.descrizione)) || null;
+}
+
+// Il conto di un mese tipo: quanto entra e quanto esce di fisso.
+function totaliFisse(fisse) {
+  let entrate = 0, uscite = 0;
+  for (const v of fisse || []) {
+    if (v.tipo === 'entrata') entrate += v.importo; else uscite += v.importo;
+  }
+  return { entrate, uscite, restano: entrate - uscite };
+}
+
+/* Come finira' il mese se da qui in poi arrivano solo le voci fisse attese.
+   E' il numero che risponde a "quanto mi resta davvero". */
+function previsioneMese(movimenti, fisse, mese, oggi) {
+  const r = riepilogoMese(movimenti, mese);
+  // Un mese chiuso non ha niente in arrivo: la previsione e' il conto vero.
+  const chiuso = mese < meseDi(oggi || oggiIso());
+  const rif = chiuso ? { attese: 0, daStipendioScorso: 0 } : entrateDiRiferimento(movimenti, mese, fisse, oggi);
+  const attese = fisseAttese(fisse, mese, oggi);
+  const usciteAttese = attese.filter((a) => a.voce.tipo === 'uscita').reduce((t, a) => t + a.voce.importo, 0);
+  const entrateFisse = r.entrateFisse + attese.filter((a) => a.voce.tipo === 'entrata').reduce((t, a) => t + a.voce.importo, 0);
+  const usciteFisse = r.usciteFisse + usciteAttese;
+  return {
+    entrate: r.entrate + rif.attese,
+    uscite: r.uscite + usciteAttese,
+    entrateAttese: rif.attese,
+    usciteAttese,
+    attese,
+    stipendioStimato: rif.daStipendioScorso,
+    entrateFisse,
+    usciteFisse,
+    entrateVariabili: r.entrateVariabili,
+    usciteVariabili: r.usciteVariabili,
+    avanzato: r.entrate + rif.attese - r.uscite - usciteAttese,
+  };
+}
+
 // ---------------------------------------------------------------- soglia e avvisi
 
 /* Le entrate con cui confrontare le uscite del mese.
@@ -233,11 +351,20 @@ function stipendioDaCopiare(movimenti, mese) {
    Contando solo quello che e' gia' entrato, ogni mese sembrerebbe in rosso
    per tre settimane. Quindi, se lo stipendio di questo mese non c'e' ancora
    ma c'era il mese prima, lo conto come "atteso" con lo stesso importo. */
-function entrateDiRiferimento(movimenti, mese) {
+function entrateDiRiferimento(movimenti, mese, fisse, oggi) {
   const r = riepilogoMese(movimenti, mese);
-  const proposta = stipendioDaCopiare(movimenti, mese);
-  const atteso = proposta ? proposta.importo : 0;
-  return { entrate: r.entrate + atteso, gia: r.entrate, stipendioAtteso: atteso };
+  // Con le voci fisse si sa gia' cosa deve arrivare.
+  const daFisse = fisseAttese(fisse, mese, oggi)
+    .filter((a) => a.voce.tipo === 'entrata').reduce((t, a) => t + a.voce.importo, 0);
+  // Senza uno stipendio fisso, si stima con quello del mese scorso.
+  const stipendioFisso = (fisse || []).some((v) => v.tipo === 'entrata' && v.categoria === 'Stipendio'
+    && voceValeNelMese(v, mese));
+  const proposta = stipendioFisso ? null : stipendioDaCopiare(movimenti, mese);
+  const daStipendioScorso = proposta ? proposta.importo : 0;
+  const attese = daFisse + daStipendioScorso;
+  return {
+    entrate: r.entrate + attese, gia: r.entrate, attese, daFisse, daStipendioScorso,
+  };
 }
 
 /* Quanto hai speso rispetto alla soglia. Null se la soglia non c'e'. */
@@ -260,7 +387,7 @@ function statoSoglia(movimenti, mese, soglia) {
    Prima della soglia non si avvisa: e' la richiesta. Se dopo l'avviso si
    corregge una spesa e si torna sotto, l'avviso resta nello storico e non
    viene ripetuto nello stesso mese. */
-function controllaAvvisi(movimenti, impostazioni, mese, notificheEsistenti) {
+function controllaAvvisi(movimenti, impostazioni, mese, notificheEsistenti, fisse, oggi) {
   const gia = (tipo) => (notificheEsistenti || []).some((n) => n.tipo === tipo && n.mese === mese);
   const nuovi = [];
   const nome = nomeMese(mese);
@@ -276,12 +403,12 @@ function controllaAvvisi(movimenti, impostazioni, mese, notificheEsistenti) {
     });
   }
 
-  const rif = entrateDiRiferimento(movimenti, mese);
+  const rif = entrateDiRiferimento(movimenti, mese, fisse, oggi);
   const uscite = riepilogoMese(movimenti, mese).uscite;
   if (uscite > rif.entrate && uscite > 0 && !gia('rosso')) {
-    const comeEntrate = rif.stipendioAtteso
-      ? 'le entrate previste (' + euro(rif.entrate) + ', contando lo stipendio non ancora arrivato)'
-      : 'le entrate (' + euro(rif.entrate) + ')';
+    let comeEntrate = 'le entrate (' + euro(rif.entrate) + ')';
+    if (rif.daFisse) comeEntrate = 'le entrate previste (' + euro(rif.entrate) + ', contando le entrate fisse non ancora arrivate)';
+    else if (rif.daStipendioScorso) comeEntrate = 'le entrate previste (' + euro(rif.entrate) + ', contando lo stipendio non ancora arrivato)';
     nuovi.push({
       tipo: 'rosso', mese,
       titolo: 'Mese in rosso',
@@ -339,5 +466,6 @@ if (typeof module !== 'undefined') {
     nomeMese, riepilogoMese, andamento, mediaAvanzato, progressoObiettivo, meseDiArrivo,
     stipendioDaCopiare, entrateDiRiferimento, statoSoglia, controllaAvvisi,
     serieGiornaliera, giornoDiSuperamento,
+    dataDellaVoce, fisseDaCreare, fisseAttese, movimentoSimile, totaliFisse, previsioneMese,
   };
 }

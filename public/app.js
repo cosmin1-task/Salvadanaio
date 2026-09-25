@@ -9,13 +9,14 @@ const stato = {
     movimenti: [],
     impostazioni: { percentualeObiettivo: null, obiettivo: null, soglia: null },
     notifiche: [],
+    fisse: [],
   },
   vista: 'giorni',
   mese: meseDi(oggiIso()),
   modifica: null, // id del movimento che si sta correggendo
 };
 
-const VISTE = ['giorni', 'mese', 'grafico', 'notifiche', 'impostazioni'];
+const VISTE = ['giorni', 'mese', 'grafico', 'fisse', 'notifiche', 'impostazioni'];
 const VISTE_CON_MESE = ['giorni', 'mese', 'grafico'];
 
 // ---------------------------------------------------------------- utilita'
@@ -57,9 +58,10 @@ const maiuscola = (t) => t.charAt(0).toUpperCase() + t.slice(1);
 const meseCorrente = () => meseDi(oggiIso());
 
 let timerAvviso;
-function avviso(testo) {
+function avviso(testo, informazione) {
   const el = $('#avviso');
   el.textContent = testo;
+  el.classList.toggle('informazione', !!informazione);
   el.hidden = false;
   clearTimeout(timerAvviso);
   timerAvviso = setTimeout(() => { el.hidden = true; }, 4500);
@@ -131,6 +133,7 @@ function disegna() {
   if (stato.vista === 'giorni') disegnaGiorni();
   if (stato.vista === 'mese') disegnaMese();
   if (stato.vista === 'grafico') disegnaGrafico();
+  if (stato.vista === 'fisse') disegnaFisse();
   if (stato.vista === 'notifiche') disegnaNotifiche();
   if (stato.vista === 'impostazioni') disegnaImpostazioni();
 }
@@ -172,6 +175,14 @@ function disegnaGiorni() {
   }
   $('#riga-sintesi').innerHTML = pezzi.map((p) => '<span>' + p + '</span>').join('<span class="separatore">·</span>');
 
+  // --- le voci fisse che devono ancora arrivare questo mese
+  const attese = fisseAttese(stato.dati.fisse, stato.mese, oggiIso());
+  $('#in-arrivo').innerHTML = attese.length
+    ? '<span class="in-arrivo-titolo">In arrivo:</span> ' + attese.map((a) => '<span class="in-arrivo-voce">'
+      + esc(a.voce.nome) + ' <span class="numero ' + (a.voce.tipo === 'entrata' ? 'positivo' : '') + '">'
+      + euro(a.voce.tipo === 'entrata' ? a.voce.importo : -a.voce.importo) + '</span> il ' + Number(a.data.slice(8)) + '</span>').join('')
+    : '';
+
   // --- l'elenco, un blocco per giorno
   const delMese = movimentiDelMese(stato.mese);
   const cont = $('#elenco-giorni');
@@ -203,7 +214,8 @@ function rigaMovimento(m) {
   const entrata = m.tipo === 'entrata';
   return '<div class="movimento">'
     + '<div class="movimento-testo">'
-    + '<span class="movimento-causale">' + esc(m.descrizione || m.categoria) + '</span>'
+    + '<span class="movimento-causale">' + esc(m.descrizione || m.categoria)
+    + (m.fissaId ? ' <span class="pillola-fissa" title="Creato da una voce fissa">fissa</span>' : '') + '</span>'
     + '<span class="movimento-categoria">' + esc(m.descrizione ? m.categoria : (entrata ? 'entrata' : 'senza causale')) + '</span>'
     + '</div>'
     + '<span class="movimento-importo numero' + (entrata ? ' positivo' : '') + '">' + euro(entrata ? m.importo : -m.importo) + '</span>'
@@ -217,18 +229,26 @@ function disegnaSuggerimentoStipendio() {
   const box = $('#suggerimento-stipendio');
   // Solo per il mese in corso o quelli passati: lo stipendio del futuro non e' ancora arrivato.
   // E nel mese in corso solo dal giorno di paga in poi: prima e' semplicemente "atteso".
+  // E non serve piu' se lo stipendio e' gia' una voce fissa: arriva da solo.
   const proposta = stato.mese <= meseCorrente() ? stipendioDaCopiare(stato.dati.movimenti, stato.mese) : null;
-  if (!proposta || proposta.data > oggiIso()) { box.hidden = true; return; }
+  const stipendioFisso = stato.dati.fisse.some((v) => v.tipo === 'entrata' && v.categoria === 'Stipendio');
+  if (!proposta || proposta.data > oggiIso() || stipendioFisso) { box.hidden = true; return; }
   box.hidden = false;
   box.innerHTML = '<span>Lo stipendio di ' + esc(nomeMese(stato.mese)) + ' non c\'e\' ancora. '
     + 'Il mese scorso era di <strong class="numero">' + euro(proposta.importo) + '</strong>.</span>'
     + '<button class="bottone-primario" id="copia-stipendio">Aggiungilo uguale, il ' + Number(proposta.data.slice(8)) + '</button>'
-    + '<button class="bottone-leggero" id="stipendio-diverso">Era diverso</button>';
+    + '<button class="bottone-leggero" id="stipendio-diverso">Era diverso</button>'
+    + (stato.mese === meseCorrente() ? '<button class="bottone-leggero" id="stipendio-fisso" title="Da ora arriva da solo ogni mese">Rendilo fisso</button>' : '');
   $('#copia-stipendio').onclick = async () => {
     const risposta = await chiama('POST', '/api/movimenti', proposta);
     stato.dati.movimenti.unshift(risposta.movimento);
     disegna();
   };
+  const bFisso = $('#stipendio-fisso');
+  if (bFisso) bFisso.onclick = () => salvaVoce({
+    tipo: 'entrata', nome: proposta.descrizione || 'Stipendio', importo: proposta.importo,
+    categoria: 'Stipendio', giorno: Number(proposta.data.slice(8)), da: meseCorrente(),
+  });
   $('#stipendio-diverso').onclick = () => {
     const f = $('#form-movimento');
     f.tipo.value = 'entrata';
@@ -317,7 +337,9 @@ async function eliminaMovimento(id) {
   const m = stato.dati.movimenti.find((x) => x.id === id);
   if (!m) return;
   const cosa = (m.descrizione || m.categoria) + ', ' + euro(m.importo);
-  if (!confirm('Eliminare questo movimento?\n\n' + cosa)) return;
+  const nota = m.fissaId ? '\n\nE\' una voce fissa: la tolgo solo da ' + nomeMese(meseDi(m.data))
+    + '. Nei prossimi mesi arrivera\' come sempre.' : '';
+  if (!confirm('Eliminare questo movimento?\n\n' + cosa + nota)) return;
   await chiama('DELETE', '/api/movimenti/' + id);
   stato.dati.movimenti = stato.dati.movimenti.filter((x) => x.id !== id);
   if (stato.modifica === id) svuotaModulo();
@@ -368,8 +390,11 @@ function disegnaMese() {
       + '<div style="width:' + larghezza.toFixed(1) + '%"></div></div>'
       + '<p class="nota-soglia">' + (s.superata
         ? '<span class="segnale-soglia">⚠ Superata di <strong class="numero">' + euro(s.speso - s.soglia) + '</strong></span>'
-        : 'Restano <strong class="numero">' + euro(s.restano) + '</strong> prima della soglia.') + '</p>';
+        : 'Restano <strong class="numero">' + euro(s.restano) + '</strong> prima della soglia.') + '</p>'
+      + notaSogliaFisse(s);
   }
+
+  disegnaConto();
 
   // --- uscite per categoria
   const contCat = $('#uscite-categorie');
@@ -389,26 +414,82 @@ function disegnaMese() {
 
   // --- entrate
   const entrate = movimentiDelMese(stato.mese, 'entrata');
-  const rif = entrateDiRiferimento(movimenti, stato.mese);
   let htmlEntrate = entrate.map((m) => '<div class="movimento">'
     + '<div class="movimento-testo"><span class="movimento-causale">' + esc(m.descrizione || m.categoria) + '</span>'
     + '<span class="movimento-categoria">' + (m.descrizione ? esc(m.categoria) + ' · ' : '') + esc(dataLeggibile(m.data, false)) + '</span></div>'
     + '<span class="movimento-importo numero positivo">' + euro(m.importo) + '</span></div>').join('');
-  if (rif.stipendioAtteso && stato.mese >= corrente) {
-    htmlEntrate += '<div class="movimento atteso"><div class="movimento-testo"><span class="movimento-causale">Stipendio</span>'
-      + '<span class="movimento-categoria">atteso il ' + Number(stipendioDaCopiare(movimenti, stato.mese).data.slice(8))
-      + ', non ancora segnato</span></div>'
-      + '<span class="movimento-importo numero">' + euro(rif.stipendioAtteso) + '</span></div>';
+  const prevE = previsioneMese(movimenti, stato.dati.fisse, stato.mese, oggiIso());
+  for (const a of prevE.attese.filter((x) => x.voce.tipo === 'entrata')) {
+    htmlEntrate += rigaAttesa(a.voce.nome, 'fissa, attesa il ' + Number(a.data.slice(8)), a.voce.importo);
+  }
+  if (prevE.stipendioStimato) {
+    const giorno = Number(stipendioDaCopiare(movimenti, stato.mese).data.slice(8));
+    htmlEntrate += rigaAttesa('Stipendio', 'atteso intorno al ' + giorno + ', come il mese scorso', prevE.stipendioStimato);
   }
   $('#elenco-entrate').innerHTML = htmlEntrate || '<div class="vuoto">Nessuna entrata in questo mese.</div>';
 
   disegnaTraguardo();
 }
 
+// Le spese fisse che devono ancora uscire contano gia' verso la soglia?
+// No, ma e' bene saperlo prima: ti dico dove arriverai.
+function notaSogliaFisse(s) {
+  const p = previsioneMese(stato.dati.movimenti, stato.dati.fisse, stato.mese, oggiIso());
+  if (s.superata || !p.usciteAttese) return '';
+  const arrivo = s.speso + p.usciteAttese;
+  return '<p class="spiegazione piccola">Con le spese fisse ancora attese (' + euro(p.usciteAttese) + ') arriverai a '
+    + euro(arrivo) + (arrivo > s.soglia ? ': <span class="segnale-soglia">oltre la soglia</span>.' : '.') + '</p>';
+}
+
+/* Il conto del mese: dallo stipendio si tolgono le spese fisse, e quello
+   che resta e' quanto hai per tutto il resto. */
+function disegnaConto() {
+  const box = $('#riquadro-conto');
+  if (!stato.dati.fisse.length) {
+    box.innerHTML = '<div class="riga-titolo"><h3 class="titolo-riquadro">Quanto ti resta</h3>'
+      + '<button class="bottone-leggero" data-vai="fisse">Imposta le voci fisse</button></div>'
+      + '<p class="spiegazione" style="margin:0">Segna una volta sola stipendio, affitto e abbonamenti: '
+      + 'qui vedrai quanto ti resta ogni mese, tolte le spese fisse.</p>';
+    return;
+  }
+  const p = previsioneMese(stato.dati.movimenti, stato.dati.fisse, stato.mese, oggiIso());
+  const disponibile = p.entrateFisse - p.usciteFisse;
+  const altreEntrate = p.entrateVariabili + p.stipendioStimato;
+  const nAttese = (tipo) => p.attese.filter((a) => a.voce.tipo === tipo).length;
+  const sotto = (n) => (n ? '<span class="conto-nota">' + (n === 1 ? '1 voce ancora attesa' : n + ' voci ancora attese') + '</span>' : '');
+  const riga = (etichetta, valore, classe, nota) => '<div class="conto-riga ' + (classe || '') + '"><span>' + etichetta + (nota || '') + '</span>'
+    + '<span class="numero">' + euro(valore, true) + '</span></div>';
+  const inCorso = stato.mese >= meseCorrente();
+
+  let html = '<h3 class="titolo-riquadro">Quanto ti resta</h3><div class="conto">'
+    + riga('Entrate fisse', p.entrateFisse, '', sotto(nAttese('entrata')))
+    + riga('Spese fisse', -p.usciteFisse, '', sotto(nAttese('uscita')))
+    + riga('Dopo le spese fisse', disponibile, 'conto-parziale');
+  if (altreEntrate) {
+    html += riga('Altre entrate', altreEntrate, '', p.stipendioStimato ? '<span class="conto-nota">compreso lo stipendio atteso</span>' : '');
+  }
+  html += riga(stato.mese === meseCorrente() ? 'Spese variabili finora' : 'Spese variabili', -p.usciteVariabili, '')
+    + '<div class="conto-riga conto-totale ' + (p.avanzato < 0 ? 'negativo' : 'positivo') + '"><span>'
+    + (inCorso ? 'Ti restano' : 'Sono rimasti') + '</span><span class="numero">' + euro(p.avanzato, true) + '</span></div>'
+    + '</div>';
+  if (inCorso) {
+    html += '<p class="spiegazione piccola">' + (stato.mese === meseCorrente()
+      ? 'Se da qui a fine mese non spendi altro, oltre alle voci fisse.'
+      : 'Previsione: contate solo le voci fisse.') + '</p>';
+  }
+  box.innerHTML = html;
+}
+
+function rigaAttesa(nome, nota, importo) {
+  return '<div class="movimento atteso"><div class="movimento-testo"><span class="movimento-causale">' + esc(nome) + '</span>'
+    + '<span class="movimento-categoria">' + esc(nota) + '</span></div>'
+    + '<span class="movimento-importo numero">' + euro(importo) + '</span></div>';
+}
+
 function notaAvanzato(r) {
-  const rif = entrateDiRiferimento(stato.dati.movimenti, stato.mese);
-  if (rif.stipendioAtteso && stato.mese >= meseCorrente()) {
-    return 'con lo stipendio atteso: ' + euro(r.avanzato + rif.stipendioAtteso, true);
+  const p = previsioneMese(stato.dati.movimenti, stato.dati.fisse, stato.mese, oggiIso());
+  if (p.attese.length || p.stipendioStimato) {
+    return 'a fine mese, con le voci attese: ' + euro(p.avanzato, true);
   }
   return r.avanzato < 0 ? 'hai speso piu\' di quanto e\' entrato' : 'entrate meno uscite';
 }
@@ -476,7 +557,6 @@ function disegnaTitolone() {
   const { movimenti } = stato.dati;
   const r = riepilogoMese(movimenti, stato.mese);
   const corrente = meseCorrente();
-  const rif = entrateDiRiferimento(movimenti, stato.mese);
   const Nome = maiuscola(nomeMese(stato.mese));
   const box = $('#titolone');
 
@@ -486,17 +566,24 @@ function disegnaTitolone() {
   }
   const inCorso = stato.mese === corrente;
   // Prima del giorno di paga il conto "vero" e' sempre in rosso, e non dice
-  // niente. Allora il verdetto si da' contando lo stipendio atteso, come
-  // fanno gli avvisi, e i numeri di oggi restano scritti sotto.
-  const atteso = rif.stipendioAtteso && stato.mese >= corrente ? rif.stipendioAtteso : 0;
-  const valore = r.avanzato + atteso;
+  // niente. Allora il verdetto si da' contando le voci fisse ancora attese
+  // (o, senza voci fisse, lo stipendio del mese scorso), come fanno gli
+  // avvisi. I numeri di oggi restano scritti sotto.
+  const p = previsioneMese(movimenti, stato.dati.fisse, stato.mese, oggiIso());
+  const conAttese = p.attese.length > 0 || p.stipendioStimato > 0;
+  const valore = conAttese ? p.avanzato : r.avanzato;
   const positivo = valore >= 0;
   let verbo = inCorso ? (positivo ? 'e\' in positivo' : 'e\' in rosso') : (positivo ? 'si e\' chiuso in positivo' : 'si e\' chiuso in rosso');
-  if (atteso) verbo += ', contando lo stipendio atteso';
-  const note = [(atteso ? 'Finora: entrate ' : 'Entrate ') + euro(r.entrate) + ', uscite ' + euro(r.uscite) + '.'];
-  if (atteso) {
-    const giorno = Number(stipendioDaCopiare(movimenti, stato.mese).data.slice(8));
-    note.push('Lo stipendio (' + euro(atteso) + ') di solito arriva il ' + giorno + '.');
+  if (inCorso && conAttese) verbo = positivo ? 'chiudera\' in positivo' : 'chiudera\' in rosso';
+  if (!inCorso && conAttese) verbo = positivo ? 'e\' previsto in positivo' : 'e\' previsto in rosso';
+  const note = [(conAttese ? 'Finora: entrate ' : 'Entrate ') + euro(r.entrate) + ', uscite ' + euro(r.uscite) + '.'];
+  if (p.attese.length) {
+    note.push('Ancora attese: ' + p.attese.map((a) => esc(a.voce.nome) + ' ' + euro(a.voce.tipo === 'entrata' ? a.voce.importo : -a.voce.importo, true)
+      + ' il ' + Number(a.data.slice(8))).join(', ') + '.');
+  }
+  if (p.stipendioStimato) {
+    note.push('Lo stipendio (' + euro(p.stipendioStimato) + ') di solito arriva il '
+      + Number(stipendioDaCopiare(movimenti, stato.mese).data.slice(8)) + '.');
   }
   if (inCorso) {
     const restano = giorniNelMese(stato.mese) - Number(oggiIso().slice(8, 10));
@@ -526,8 +613,8 @@ function disegnaGraficoMese() {
   }
 
   const soglia = impostazioni.soglia || null;
-  const rif = entrateDiRiferimento(movimenti, stato.mese);
-  const previste = rif.stipendioAtteso && stato.mese >= meseCorrente() ? rif.entrate : null;
+  const prev = previsioneMese(movimenti, stato.dati.fisse, stato.mese, oggiIso());
+  const previste = prev.entrateAttese ? prev.entrate : null;
   const giorniMese = giorniNelMese(stato.mese);
   const ultimo = serie[serie.length - 1];
 
@@ -626,7 +713,7 @@ function disegnaGraficoMese() {
   legenda.innerHTML = voceLegenda('entrate', 'Entrate accumulate')
     + voceLegenda('uscite', 'Uscite accumulate')
     + (soglia ? voceLegenda('soglia', 'Soglia di sicurezza') : '')
-    + (previste ? voceLegenda('previste', 'Entrate previste (stipendio atteso)') : '');
+    + (previste ? voceLegenda('previste', 'Entrate previste (non ancora arrivate)') : '');
 }
 
 // L'area fra entrate e uscite, spezzata dove le due linee si incrociano.
@@ -789,6 +876,143 @@ function euroCorto(c) {
   const a = Math.abs(e);
   if (a >= 1000) return segno + (Math.round(a / 100) / 10).toString().replace('.', ',') + 'k €';
   return segno + Math.round(a) + ' €';
+}
+
+// ================================================================ VOCI FISSE
+
+function disegnaFisse() {
+  const { fisse, impostazioni } = stato.dati;
+  const corrente = meseCorrente();
+
+  // --- il conto di un mese tipo
+  const t = totaliFisse(fisse);
+  const conto = $('#conto-fisse');
+  if (!fisse.length) {
+    conto.innerHTML = '<p class="spiegazione" style="margin:0">Nessuna voce fissa. Comincia dallo stipendio, '
+      + 'poi aggiungi affitto, bollette a importo fisso, abbonamenti.</p>';
+  } else {
+    let nota = '';
+    if (impostazioni.soglia) {
+      nota = t.uscite > impostazioni.soglia
+        ? '<p class="spiegazione piccola"><span class="segnale-soglia">⚠ Le spese fisse da sole (' + euro(t.uscite)
+          + ') superano la soglia di ' + euro(impostazioni.soglia) + ': l\'avviso arrivera\' ogni mese.</span></p>'
+        : '<p class="spiegazione piccola">La soglia di ' + euro(impostazioni.soglia) + ' conta anche le spese fisse: per il resto ti lascia '
+          + euro(impostazioni.soglia - t.uscite) + ' al mese.</p>';
+    }
+    conto.innerHTML = '<h3 class="titolo-riquadro">Ogni mese</h3><div class="conto">'
+      + '<div class="conto-riga"><span>Entrate fisse</span><span class="numero">' + euro(t.entrate, true) + '</span></div>'
+      + '<div class="conto-riga"><span>Spese fisse</span><span class="numero">' + euro(-t.uscite, true) + '</span></div>'
+      + '<div class="conto-riga conto-totale ' + (t.restano < 0 ? 'negativo' : 'positivo') + '"><span>Restano per tutto il resto</span>'
+      + '<span class="numero">' + euro(t.restano, true) + '</span></div></div>' + nota;
+  }
+
+  // --- gli elenchi
+  const riga = (v) => {
+    const data = dataDellaVoce(v, corrente);
+    let statoMese;
+    if (v.da > corrente) statoMese = 'parte da ' + nomeMese(v.da);
+    else if ((v.mesiFatti || []).includes(corrente)) {
+      const m = stato.dati.movimenti.find((x) => x.fissaId === v.id && meseDi(x.data) === corrente);
+      statoMese = m ? 'segnata il ' + Number(m.data.slice(8)) + ' ' + NOMI_MESI[Number(corrente.slice(5)) - 1]
+        : 'tolta da ' + NOMI_MESI[Number(corrente.slice(5)) - 1];
+    } else statoMese = 'attesa il ' + Number(data.slice(8));
+    return '<div class="movimento">'
+      + '<div class="movimento-testo"><span class="movimento-causale">' + esc(v.nome) + '</span>'
+      + '<span class="movimento-categoria">' + esc(v.categoria) + ' · il ' + v.giorno + ' di ogni mese · ' + esc(statoMese) + '</span></div>'
+      + '<span class="movimento-importo numero' + (v.tipo === 'entrata' ? ' positivo' : '') + '">'
+      + euro(v.tipo === 'entrata' ? v.importo : -v.importo) + '</span>'
+      + '<span class="azioni">'
+      + '<button class="bottone-icona" data-voce="modifica" data-id="' + esc(v.id) + '">Modifica</button>'
+      + '<button class="bottone-icona pericolo" data-voce="elimina" data-id="' + esc(v.id) + '">Elimina</button>'
+      + '</span></div>';
+  };
+  const perGiorno = (a, b) => a.giorno - b.giorno || a.nome.localeCompare(b.nome);
+  const entrate = fisse.filter((v) => v.tipo === 'entrata').sort(perGiorno);
+  const uscite = fisse.filter((v) => v.tipo === 'uscita').sort(perGiorno);
+  $('#elenco-fisse-entrate').innerHTML = entrate.map(riga).join('') || '<div class="vuoto">Nessuna. Lo stipendio va qui.</div>';
+  $('#elenco-fisse-uscite').innerHTML = uscite.map(riga).join('') || '<div class="vuoto">Nessuna. Affitto e abbonamenti vanno qui.</div>';
+
+  aggiornaCategorieVoce();
+}
+
+function aggiornaCategorieVoce() {
+  const tipo = $('#form-voce').tipo.value;
+  const base = tipo === 'entrata' ? CATEGORIE_ENTRATE : CATEGORIE_USCITE;
+  const usate = stato.dati.movimenti.filter((m) => m.tipo === tipo).map((m) => m.categoria);
+  $('#elenco-categorie-fisse').innerHTML = [...new Set([...base, ...usate])].map((c) => '<option value="' + esc(c) + '">').join('');
+}
+
+function svuotaModuloVoce() {
+  const f = $('#form-voce');
+  stato.modificaVoce = null;
+  f.reset();
+  f.da.disabled = false;
+  f.classList.remove('in-modifica');
+  $('#bottone-salva-voce').textContent = 'Aggiungi';
+  $('#bottone-annulla-voce').hidden = true;
+  $('#nota-voce').innerHTML = 'Se questo mese l\'hai gia\' segnata a mano, la riconosco (stesso importo e categoria) e non la raddoppio. '
+    + 'Giorni 29, 30 e 31: nei mesi piu\' corti vale l\'ultimo giorno.';
+  aggiornaCategorieVoce();
+}
+
+function iniziaModificaVoce(id) {
+  const v = stato.dati.fisse.find((x) => x.id === id);
+  if (!v) return;
+  const f = $('#form-voce');
+  stato.modificaVoce = id;
+  f.tipo.value = v.tipo;
+  aggiornaCategorieVoce();
+  f.importo.value = importoPerCampo(v.importo);
+  f.nome.value = v.nome;
+  f.categoria.value = v.categoria;
+  f.giorno.value = v.giorno;
+  f.da.disabled = true; // il mese di partenza non si cambia
+  f.classList.add('in-modifica');
+  $('#bottone-salva-voce').textContent = 'Salva modifiche';
+  $('#bottone-annulla-voce').hidden = false;
+  $('#nota-voce').innerHTML = 'Le modifiche valgono dai prossimi movimenti. Quelli gia\' registrati restano come sono: '
+    + 'per correggere un mese solo, modifica il movimento in Giorno per giorno.';
+  f.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  f.importo.focus();
+}
+
+// Crea o modifica una voce. Il server rimanda tutto l'archivio, perche'
+// una voce nuova puo' creare subito il movimento di questo mese.
+async function salvaVoce(corpo, id) {
+  const risposta = await chiama(id ? 'PUT' : 'POST', '/api/fisse' + (id ? '/' + id : ''), corpo);
+  stato.dati = risposta.dati;
+  if (risposta.collegato) {
+    avviso('"' + (risposta.collegato.descrizione || risposta.collegato.categoria) + '" di questo mese era gia\' segnato: '
+      + 'l\'ho collegato alla voce fissa, niente doppioni.', true);
+  }
+  disegna();
+}
+
+async function inviaModuloVoce(evento) {
+  evento.preventDefault();
+  const f = evento.target;
+  const importo = leggiImporto(f.importo.value);
+  if (importo === null) { avviso('L\'importo non si legge. Scrivilo cosi\': 12,50 oppure 1.250'); f.importo.focus(); return; }
+  const giorno = Number(f.giorno.value);
+  if (!(Number.isInteger(giorno) && giorno >= 1 && giorno <= 31)) { avviso('Il giorno va da 1 a 31.'); f.giorno.focus(); return; }
+  const corpo = {
+    tipo: f.tipo.value, importo, nome: f.nome.value.trim(), categoria: f.categoria.value.trim(), giorno,
+    da: f.da.value === 'prossimo' ? spostaMese(meseCorrente(), 1) : meseCorrente(),
+  };
+  const id = stato.modificaVoce;
+  await salvaVoce(corpo, id);
+  svuotaModuloVoce();
+}
+
+async function eliminaVoce(id) {
+  const v = stato.dati.fisse.find((x) => x.id === id);
+  if (!v) return;
+  if (!confirm('Togliere la voce fissa "' + v.nome + '"?\n\nI movimenti gia\' registrati nei mesi passati restano. '
+    + 'Dal prossimo non verra\' piu\' aggiunta.')) return;
+  const risposta = await chiama('DELETE', '/api/fisse/' + id);
+  stato.dati = risposta.dati;
+  if (stato.modificaVoce === id) svuotaModuloVoce();
+  disegna();
 }
 
 // ================================================================ NOTIFICHE
@@ -973,6 +1197,19 @@ function collega() {
   });
   $('#segna-lette').onclick = () => segnaLette(null);
 
+  const fv = $('#form-voce');
+  fv.addEventListener('submit', inviaModuloVoce);
+  for (const r of fv.querySelectorAll('[name=tipo]')) {
+    r.addEventListener('change', () => { fv.categoria.value = ''; aggiornaCategorieVoce(); });
+  }
+  $('#bottone-annulla-voce').onclick = svuotaModuloVoce;
+  $('#vista-fisse').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-voce]');
+    if (!b) return;
+    if (b.dataset.voce === 'modifica') iniziaModificaVoce(b.dataset.id);
+    if (b.dataset.voce === 'elimina') eliminaVoce(b.dataset.id);
+  });
+
   $('#form-soglia').addEventListener('submit', salvaSoglia);
   $('#soglia-togli').onclick = () => salvaImpostazioni({ soglia: null });
   $('#form-percentuale').addEventListener('submit', salvaPercentuale);
@@ -982,6 +1219,7 @@ function collega() {
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && stato.modifica) { svuotaModulo(); aggiornaCategorie(); }
+    if (e.key === 'Escape' && stato.modificaVoce) svuotaModuloVoce();
   });
 }
 

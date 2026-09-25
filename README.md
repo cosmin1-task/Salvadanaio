@@ -1,11 +1,12 @@
 # Salvadanaio
 
-**Versione 0.1**
+**Versione 0.2**
 
 Un programma per capire quanto di quello che guadagni riesci a mettere da parte.
 Segni cosa entra e cosa esce; lui ti dice quanto è avanzato ogni mese, che
 percentuale hai risparmiato e quanto ti manca per arrivare a un traguardo.
-Se spendi più di una soglia che scegli tu, ti avvisa.
+Se spendi più di una soglia che scegli tu, ti avvisa. Stipendio, affitto e
+abbonamenti li scrivi una volta sola: ogni mese entrano da soli.
 
 Gira solo sul tuo computer: niente internet, niente account, niente banca
 collegata. Nessun dato esce da qui. Funziona su macOS, Windows e Linux.
@@ -49,13 +50,18 @@ dalla volta dopo te la propone lui.
 - Uscite: Casa, Bollette, Spesa, Trasporti, Salute, Ristoranti e svago,
   Abbigliamento, Abbonamenti, Regali, Altro
 
-Quando arriva il giorno di paga e lo stipendio non è ancora segnato, in cima
-compare un avviso che propone di aggiungerlo uguale al mese scorso con un clic.
-Se è stato diverso, premi *Era diverso* e scrivi tu l'importo giusto.
+Sotto la riga di sintesi, *In arrivo* elenca le voci fisse che devono ancora
+arrivare questo mese. I movimenti creati da una voce fissa portano l'etichetta
+**fissa**: si correggono e si eliminano come gli altri, e la modifica vale solo
+per quel mese.
+
+(Se lo stipendio non è una voce fissa, quando arriva il giorno di paga compare
+un avviso che propone di copiarlo dal mese scorso, oppure di renderlo fisso.)
 
 **2. Mese.** La vista d'insieme: entrate (divise fra stipendio ed extra),
-uscite, quanto è avanzato e che percentuale hai messo da parte. Sotto, a che
-punto sei con la soglia, dove sono andati i soldi divisi per categoria, cosa
+uscite, quanto è avanzato e che percentuale hai messo da parte. Poi il conto
+*Quanto ti resta*: entrate fisse, meno spese fisse, meno le spese variabili
+fatte finora. Sotto, a che punto sei con la soglia, dove sono andati i soldi divisi per categoria, cosa
 è entrato, e il traguardo se ne hai scelto uno.
 
 **3. Grafico.** In grande, la risposta alla domanda "questo mese sono in
@@ -65,6 +71,27 @@ blu delle uscite resta sotto quella verde delle entrate, sei in positivo; il
 giorno in cui passa la soglia è segnato con un cerchio. Passando col mouse
 leggi i numeri di ogni giorno. Più in basso, tutti i mesi a confronto, con
 grafico e tabella: un clic su una colonna porta a quel mese.
+
+**Voci fisse.** Quello che torna uguale ogni mese: stipendio, affitto,
+abbonamenti, bollette a importo fisso. Per ognuna scrivi importo, nome,
+categoria e il giorno del mese. In cima, il conto di un mese tipo: quanto
+entra, quanto esce di fisso e quanto resta per tutto il resto.
+
+Come funzionano:
+
+- **Nel loro giorno entrano da sole** fra i movimenti del mese. Se il
+  Salvadanaio resta chiuso per un po', alla prossima apertura recupera quelle
+  arrivate nel frattempo.
+- **Prima del loro giorno sono "attese"**: non contano ancora come spese vere
+  (e quindi nemmeno per la soglia), ma entrano nelle previsioni di fine mese.
+- **Si parte da questo mese o dal prossimo**, a scelta. Se la voce l'avevi già
+  segnata a mano questo mese (stesso importo, categoria e un nome simile), il
+  programma la riconosce e non la raddoppia.
+- **Cambiare una voce vale dai mesi successivi.** Se una bolletta un mese è
+  diversa, correggi quel movimento in Giorno per giorno. Se un mese non l'hai
+  pagata, elimina il movimento: non ricompare.
+- **Togliere una voce** ferma i mesi futuri; quelli passati restano com'erano.
+- Giorni 29, 30 e 31: nei mesi più corti vale l'ultimo giorno.
 
 **Notifiche.** Lo storico degli avvisi (vedi sotto). Il numero accanto al
 nome della scheda dice quanti non hai ancora letto.
@@ -89,11 +116,14 @@ Tre cose da sapere:
 
 - **Ogni avviso arriva una volta sola per mese.** Se superi la soglia a metà
   mese, le spese dopo non ne generano altri.
-- **Lo stipendio atteso conta.** L'affitto esce il primo, lo stipendio entra
+- **Le entrate attese contano.** L'affitto esce il primo, lo stipendio entra
   a fine mese: contando solo quello già entrato, ogni mese sarebbe "in rosso"
-  per tre settimane. Quindi, finché lo stipendio del mese non è segnato, il
-  programma conta quello del mese scorso come atteso. Lo stesso vale per la
-  scritta grande nella scheda Grafico.
+  per tre settimane. Quindi l'avviso rosso conta anche le entrate fisse non
+  ancora arrivate (o, se lo stipendio non è una voce fissa, quello del mese
+  scorso). La scritta grande nella scheda Grafico dice come chiuderà il mese
+  contando tutte le voci fisse attese, entrate e spese.
+- **La soglia conta tutte le uscite**, fisse comprese. Nella scheda Voci fisse
+  vedi quanto della soglia se ne va in spese fisse e quanto ne resta per il resto.
 - **Gli avvisi sono sullo schermo, non nel Centro Notifiche del Mac.** Le soglie
   si superano quando segni una spesa, e in quel momento hai la pagina davanti.
 
@@ -153,7 +183,7 @@ Il consiglio, per ora, è usarlo da un computer solo.
       public/index.html      la struttura della pagina
       public/stile.css       l'aspetto
       public/app.js          il comportamento: cosa succede quando clicchi
-      public/conti.js        i calcoli: riepiloghi, medie, obiettivo, soglia, avvisi
+      public/conti.js        i calcoli: riepiloghi, medie, obiettivo, soglia, avvisi, voci fisse
                              (li usano sia la pagina sia server.js)
       prove/                 i controlli automatici
       dati.json              i tuoi dati
@@ -181,12 +211,13 @@ Nella cartella `prove/` ci sono i controlli automatici. Per eseguirli:
 Controllano che gli importi vengano letti bene in tutti i modi in cui si
 scrivono, che i riepiloghi del mese tornino al centesimo, che il mese in corso
 non entri nella media, che i conti dell'obiettivo siano giusti anche a cavallo
-dell'anno, e che gli avvisi scattino quando devono: una volta sola, e non per
-uno stipendio che deve ancora arrivare.
+dell'anno, che gli avvisi scattino quando devono (una volta sola, e non per
+uno stipendio che deve ancora arrivare) e che le voci fisse entrino nel giorno
+giusto, senza doppioni e senza ricomparire dopo essere state tolte.
 
 ## Cosa manca ancora (i prossimi passi)
 
 1. Importare l'estratto conto della banca (file CSV), invece di scrivere tutto a mano
-2. Spese fisse che si ripetono ogni mese (affitto, abbonamenti), come già succede per lo stipendio
-3. Un budget per categoria: "per la spesa non più di 400 € al mese"
+2. Un budget per categoria: "per la spesa non più di 400 € al mese"
+3. Voci fisse non mensili (l'assicurazione una volta l'anno, una bolletta ogni due mesi)
 4. Esportare i dati per il commercialista o per un foglio di calcolo

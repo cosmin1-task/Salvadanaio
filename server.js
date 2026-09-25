@@ -22,6 +22,7 @@ function vuoto() {
     movimenti: [],
     impostazioni: { percentualeObiettivo: null, obiettivo: null, soglia: null },
     notifiche: [],
+    fisse: [],
   };
 }
 
@@ -35,6 +36,8 @@ function leggiDati() {
     // I dati della versione 0.0 non hanno ne' soglia ne' notifiche.
     if (!('soglia' in dati.impostazioni)) dati.impostazioni.soglia = null;
     if (!Array.isArray(dati.notifiche)) dati.notifiche = [];
+    // ...e quelli della 0.1 non hanno le voci fisse.
+    if (!Array.isArray(dati.fisse)) dati.fisse = [];
     return dati;
   } catch (err) {
     if (err.code === 'ENOENT') return vuoto();
@@ -94,6 +97,34 @@ function normalizzaMovimento(corpo, precedente) {
     data: E_UNA_DATA(corpo.data) ? corpo.data : (vecchio.data || oggiIso()),
     categoria: testo(corpo.categoria, 60) || (tipo === 'entrata' ? 'Extra' : 'Altro'),
     descrizione: testo(corpo.descrizione, 300),
+    // Il legame con la voce fissa lo mette solo il server: dalla pagina non si tocca.
+    fissaId: vecchio.fissaId || '',
+    creato: vecchio.creato || new Date().toISOString(),
+    aggiornato: new Date().toISOString(),
+  };
+}
+
+const E_UN_MESE = (v) => /^\d{4}-\d{2}$/.test(v || '');
+
+function normalizzaVoce(corpo, precedente) {
+  const vecchio = precedente || {};
+  const tipo = TIPI.includes(corpo.tipo) ? corpo.tipo : (vecchio.tipo || 'uscita');
+  const importo = centesimi(corpo.importo);
+  if (importo === null) throw new Errore400('Importo non valido');
+  const nome = testo(corpo.nome, 100);
+  if (!nome) throw new Errore400('Manca il nome della voce');
+  const giorno = Number(corpo.giorno);
+  if (!(Number.isInteger(giorno) && giorno >= 1 && giorno <= 31)) throw new Errore400('Il giorno va da 1 a 31');
+  return {
+    id: vecchio.id || nuovoId(),
+    tipo,
+    nome,
+    importo,
+    categoria: testo(corpo.categoria, 60) || (tipo === 'entrata' ? 'Stipendio' : 'Altro'),
+    giorno,
+    // Il mese di partenza si sceglie quando nasce la voce e poi non cambia.
+    da: vecchio.da || (E_UN_MESE(corpo.da) ? corpo.da : conti.meseDi(oggiIso())),
+    mesiFatti: vecchio.mesiFatti || [],
     creato: vecchio.creato || new Date().toISOString(),
     aggiornato: new Date().toISOString(),
   };
@@ -144,13 +175,27 @@ function generaAvvisi(dati, mesiToccati) {
   const nuovi = [];
   for (const mese of new Set(mesiToccati)) {
     if (mese !== questo && mese !== precedente) continue;
-    for (const a of conti.controllaAvvisi(dati.movimenti, dati.impostazioni, mese, dati.notifiche)) {
+    for (const a of conti.controllaAvvisi(dati.movimenti, dati.impostazioni, mese, dati.notifiche, dati.fisse, oggiIso())) {
       const notifica = Object.assign({ id: nuovoId(), creata: new Date().toISOString(), letta: false }, a);
       dati.notifiche.unshift(notifica);
       nuovi.push(notifica);
     }
   }
   return nuovi;
+}
+
+// ---------- voci fisse ----------
+
+/* Crea i movimenti delle voci fisse arrivate al loro giorno (anche quelli
+   persi mentre il programma era chiuso). Restituisce i mesi toccati. */
+function allineaFisse(dati) {
+  const mesi = [];
+  for (const { voce, mese, movimento } of conti.fisseDaCreare(dati.fisse, oggiIso())) {
+    dati.movimenti.unshift(normalizzaMovimento(movimento, { fissaId: voce.id }));
+    voce.mesiFatti = (voce.mesiFatti || []).concat(mese);
+    mesi.push(mese);
+  }
+  return mesi;
 }
 
 // ---------- utilita' http ----------
@@ -213,8 +258,56 @@ const server = http.createServer(async (req, res) => {
 
   try {
     // /api/dati -> tutto l'archivio
+    // Aprire la pagina e' il momento in cui le voci fisse arrivate si registrano.
     if (percorso === '/api/dati' && req.method === 'GET') {
-      return rispondiJson(res, 200, leggiDati());
+      const dati = leggiDati();
+      const mesi = allineaFisse(dati);
+      if (mesi.length) {
+        generaAvvisi(dati, mesi);
+        scriviDati(dati);
+      }
+      return rispondiJson(res, 200, dati);
+    }
+
+    // /api/fisse[/id] -> le voci fisse. Ogni modifica rimanda tutto l'archivio,
+    // perche' creare una voce puo' creare anche dei movimenti.
+    if (percorso.startsWith('/api/fisse')) {
+      const idVoce = percorso.split('/').filter(Boolean)[2];
+      const dati = leggiDati();
+      let collegato = null;
+
+      if (req.method === 'POST' && !idVoce) {
+        const voce = normalizzaVoce(await leggiCorpo(req), null);
+        // Se questo mese l'avevi gia' segnato a mano, quello e' il movimento
+        // di questa voce: lo lego invece di crearne un doppione.
+        const questo = conti.meseDi(oggiIso());
+        if (voce.da === questo) {
+          const simile = conti.movimentoSimile(dati.movimenti, voce, questo);
+          if (simile) {
+            simile.fissaId = voce.id;
+            voce.mesiFatti.push(questo);
+            collegato = simile;
+          }
+        }
+        dati.fisse.push(voce);
+      } else if (req.method === 'PUT' && idVoce) {
+        const i = dati.fisse.findIndex((v) => v.id === idVoce);
+        if (i === -1) return rispondiJson(res, 404, { errore: 'Non trovata' });
+        dati.fisse[i] = normalizzaVoce(Object.assign({}, dati.fisse[i], await leggiCorpo(req)), dati.fisse[i]);
+      } else if (req.method === 'DELETE' && idVoce) {
+        const i = dati.fisse.findIndex((v) => v.id === idVoce);
+        if (i === -1) return rispondiJson(res, 404, { errore: 'Non trovata' });
+        dati.fisse.splice(i, 1);
+        // I movimenti gia' creati restano cosi' come sono: sono soldi usciti
+        // davvero, e in quei mesi erano spese fisse. Dal prossimo non se ne creano piu'.
+      } else {
+        return rispondiJson(res, 405, { errore: 'Metodo non ammesso' });
+      }
+
+      const mesi = allineaFisse(dati);
+      const nuoveNotifiche = generaAvvisi(dati, mesi.concat(conti.meseDi(oggiIso())));
+      scriviDati(dati);
+      return rispondiJson(res, 200, { dati, nuoveNotifiche, collegato });
     }
 
     // /api/impostazioni -> percentuale e obiettivo
