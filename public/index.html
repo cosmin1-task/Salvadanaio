@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Salvadanaio</title>
+<link rel="stylesheet" href="stile.css">
+</head>
+<body>
+
+<header class="testata">
+  <div class="testata-riga">
+    <h1 class="marchio">Salvadanaio</h1>
+    <span id="stato-salvataggio" class="stato-salvataggio" aria-live="polite"></span>
+  </div>
+  <nav class="schede" role="tablist">
+    <button class="scheda attiva" data-vista="mese" role="tab">Mese</button>
+    <button class="scheda" data-vista="andamento" role="tab">Andamento</button>
+    <button class="scheda" data-vista="obiettivo" role="tab">Obiettivo</button>
+  </nav>
+</header>
+
+<main>
+
+  <!-- MESE -->
+  <section id="vista-mese" class="vista">
+
+    <div class="navigatore-mese">
+      <button id="mese-prima" class="bottone-icona" title="Mese precedente" aria-label="Mese precedente">‹</button>
+      <h2 id="mese-nome" class="mese-nome"></h2>
+      <button id="mese-dopo" class="bottone-icona" title="Mese successivo" aria-label="Mese successivo">›</button>
+      <button id="mese-oggi" class="bottone-leggero" hidden>Torna a questo mese</button>
+    </div>
+
+    <div id="suggerimento-stipendio" class="suggerimento" hidden></div>
+
+    <div id="riquadri-mese" class="riquadri"></div>
+
+    <form id="form-movimento" class="riquadro aggiunta" autocomplete="off">
+      <div class="interruttore" role="radiogroup" aria-label="Tipo di movimento">
+        <label><input type="radio" name="tipo" value="uscita" checked><span>Uscita</span></label>
+        <label><input type="radio" name="tipo" value="entrata"><span>Entrata</span></label>
+      </div>
+      <input name="importo" class="campo-importo" placeholder="0,00 €" inputmode="decimal" required aria-label="Importo">
+      <input name="categoria" class="campo-categoria" list="elenco-categorie" placeholder="Categoria" required maxlength="60" aria-label="Categoria">
+      <datalist id="elenco-categorie"></datalist>
+      <input name="descrizione" class="campo-largo" placeholder="Descrizione (facoltativa)" maxlength="300" aria-label="Descrizione">
+      <input name="data" type="date" class="campo-data" required aria-label="Data">
+      <button type="submit" class="bottone-primario" id="bottone-salva">Aggiungi</button>
+      <button type="button" class="bottone-leggero" id="bottone-annulla" hidden>Annulla</button>
+    </form>
+
+    <div class="due-colonne">
+      <section class="riquadro">
+        <h3 class="titolo-riquadro">Dove sono andati i soldi</h3>
+        <div id="uscite-categorie"></div>
+      </section>
+      <section class="riquadro">
+        <h3 class="titolo-riquadro">Movimenti del mese</h3>
+        <div id="elenco-movimenti"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ANDAMENTO -->
+  <section id="vista-andamento" class="vista" hidden>
+    <section class="riquadro">
+      <h3 class="titolo-riquadro">Quanto e' avanzato ogni mese</h3>
+      <p class="spiegazione">Entrate meno uscite. Sotto la linea, i mesi in cui hai speso piu' di quanto e' entrato.</p>
+      <div id="grafico-andamento" class="grafico"></div>
+    </section>
+    <section class="riquadro">
+      <h3 class="titolo-riquadro">Mese per mese</h3>
+      <div id="tabella-andamento"></div>
+    </section>
+  </section>
+
+  <!-- OBIETTIVO -->
+  <section id="vista-obiettivo" class="vista" hidden>
+
+    <section class="riquadro">
+      <h3 class="titolo-riquadro">Quanto mettere da parte ogni mese</h3>
+      <p class="spiegazione">Una percentuale di quello che entra. Nella vista Mese vedrai se ci sei arrivato.</p>
+      <form id="form-percentuale" class="riga-modulo">
+        <label class="etichetta-in-linea">
+          <input name="percentuale" type="number" min="1" max="100" step="0.5" placeholder="20" class="campo-corto"> %
+        </label>
+        <button type="submit" class="bottone-primario">Salva</button>
+        <button type="button" id="percentuale-togli" class="bottone-leggero" hidden>Togli</button>
+      </form>
+    </section>
+
+    <section class="riquadro">
+      <h3 class="titolo-riquadro">Un traguardo</h3>
+      <div id="progresso-obiettivo"></div>
+      <form id="form-obiettivo" class="modulo-obiettivo" autocomplete="off">
+        <label>Per cosa<input name="nome" maxlength="100" placeholder="Fondo per gli imprevisti"></label>
+        <label>Quanto<input name="importo" inputmode="decimal" placeholder="5.000,00 €" required></label>
+        <label>Entro, se vuoi<input name="entro" type="date"></label>
+        <label>Conta da<input name="da" type="date" required></label>
+        <label>Gia' da parte quel giorno<input name="partenza" inputmode="decimal" placeholder="0,00 €"></label>
+        <div class="azioni-obiettivo">
+          <button type="submit" class="bottone-primario">Salva il traguardo</button>
+          <button type="button" id="obiettivo-togli" class="bottone-leggero" hidden>Togli il traguardo</button>
+        </div>
+      </form>
+      <p class="spiegazione piccola">"Conta da" e' il giorno da cui parti; "Gia' da parte" e' quello che avevi quel giorno.
+        Da li' in poi si aggiunge da solo quello che avanza ogni mese.</p>
+    </section>
+  </section>
+
+</main>
+
+<div id="suggerimento-grafico" class="suggerimento-grafico" hidden></div>
+<div id="avviso" class="avviso" hidden></div>
+
+<script src="conti.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

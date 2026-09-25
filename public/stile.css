@@ -1,0 +1,287 @@
+/* Salvadanaio - foglio di stile.
+   Stessa famiglia del Taccuino; cambia il colore d'accento, cosi' con le due
+   finestre aperte si capisce subito quale delle due stai guardando. */
+
+:root {
+  --sfondo: #f7f6f3;
+  --superficie: #ffffff;
+  --superficie-2: #f1efea;
+  --bordo: #e2ded6;
+  --testo: #26231e;
+  --testo-tenue: #6f6a61;
+  --accento: #2f5d8a;
+  --accento-tenue: #e5edf5;
+  /* Verde e rosso sono riservati ai soldi: avanzati o mancanti. */
+  --positivo: #2f7d57;
+  --positivo-tenue: #e3f1ea;
+  --negativo: #b4462f;
+  --negativo-tenue: #fbeae6;
+  --barra: #6f8fb0;
+  --griglia: #ebe8e2;
+  --ombra: 0 1px 2px rgba(0,0,0,.05), 0 4px 12px rgba(0,0,0,.04);
+  --raggio: 10px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --sfondo: #16171a;
+    --superficie: #1e2024;
+    --superficie-2: #26292e;
+    --bordo: #33373d;
+    --testo: #e6e4e0;
+    --testo-tenue: #9a968f;
+    --accento: #7fa9d4;
+    --accento-tenue: #223040;
+    --positivo: #5fb98d;
+    --positivo-tenue: #1f342a;
+    --negativo: #e08370;
+    --negativo-tenue: #3a2622;
+    --barra: #7f9dbd;
+    --griglia: #2a2d32;
+    --ombra: 0 1px 2px rgba(0,0,0,.3), 0 4px 12px rgba(0,0,0,.25);
+  }
+}
+
+* { box-sizing: border-box; }
+
+/* Un elemento nascosto resta nascosto, qualunque "display" abbia sotto. */
+[hidden] { display: none !important; }
+
+body {
+  margin: 0;
+  background: var(--sfondo);
+  color: var(--testo);
+  font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.numero { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.positivo { color: var(--positivo); }
+.negativo { color: var(--negativo); }
+
+/* ---------- testata ---------- */
+
+.testata {
+  position: sticky; top: 0; z-index: 20;
+  background: color-mix(in srgb, var(--sfondo) 88%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--bordo);
+  padding: 14px 16px 0;
+}
+
+.testata-riga {
+  display: flex; align-items: center; gap: 14px;
+  max-width: 900px; margin: 0 auto;
+}
+
+.marchio { font-size: 17px; font-weight: 650; margin: 0; letter-spacing: -.01em; flex: 1; }
+
+.stato-salvataggio {
+  font-size: 12px; color: var(--testo-tenue); min-width: 62px; text-align: right;
+  opacity: 0; transition: opacity .25s;
+}
+.stato-salvataggio.visibile { opacity: 1; }
+
+.schede { display: flex; gap: 4px; max-width: 900px; margin: 10px auto 0; }
+
+.scheda {
+  border: 0; background: none; cursor: pointer;
+  padding: 8px 12px; border-radius: 8px 8px 0 0;
+  font: inherit; font-size: 14px; color: var(--testo-tenue);
+  border-bottom: 2px solid transparent;
+}
+.scheda:hover { color: var(--testo); }
+.scheda.attiva { color: var(--testo); font-weight: 600; border-bottom-color: var(--accento); }
+
+/* ---------- struttura ---------- */
+
+main { max-width: 900px; margin: 0 auto; padding: 20px 16px 80px; }
+
+.riquadro {
+  background: var(--superficie);
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio);
+  box-shadow: var(--ombra);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.titolo-riquadro { font-size: 14px; font-weight: 600; margin: 0 0 12px; }
+.spiegazione { font-size: 13px; color: var(--testo-tenue); margin: -6px 0 14px; }
+.spiegazione.piccola { margin: 12px 0 0; font-size: 12.5px; }
+
+.due-colonne { display: grid; grid-template-columns: 1fr 1.25fr; gap: 16px; align-items: start; }
+.due-colonne .riquadro { margin-bottom: 0; }
+
+.vuoto { text-align: center; color: var(--testo-tenue); padding: 28px 12px; font-size: 14px; }
+
+/* ---------- navigatore del mese ---------- */
+
+.navigatore-mese { display: flex; align-items: center; gap: 6px; margin-bottom: 14px; }
+.mese-nome { font-size: 20px; font-weight: 650; margin: 0 4px; letter-spacing: -.01em; min-width: 170px; text-align: center; }
+.navigatore-mese .bottone-icona { font-size: 20px; padding: 2px 10px; }
+.navigatore-mese .bottone-leggero { margin-left: 8px; }
+
+/* ---------- riquadri numerici ---------- */
+
+.riquadri { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+
+.tessera {
+  background: var(--superficie); border: 1px solid var(--bordo);
+  border-radius: var(--raggio); box-shadow: var(--ombra);
+  padding: 12px 14px;
+}
+.tessera-etichetta { font-size: 12.5px; color: var(--testo-tenue); }
+.tessera-valore { font-size: 22px; font-weight: 650; letter-spacing: -.01em; margin-top: 2px; }
+.tessera-nota { font-size: 12px; color: var(--testo-tenue); margin-top: 2px; }
+.tessera-nota.positivo { color: var(--positivo); }
+.tessera-nota.negativo { color: var(--negativo); }
+
+/* ---------- moduli ---------- */
+
+.aggiunta { display: flex; gap: 8px; padding: 10px; flex-wrap: wrap; align-items: center; }
+
+input, select {
+  border: 1px solid var(--bordo); border-radius: 7px;
+  padding: 8px 10px; font: inherit; font-size: 14px;
+  background: var(--sfondo); color: var(--testo);
+}
+input:focus, select:focus { outline: 2px solid var(--accento); outline-offset: -1px; }
+
+.campo-importo { width: 120px; text-align: right; font-variant-numeric: tabular-nums; }
+.campo-categoria { width: 150px; }
+.campo-largo { flex: 1; min-width: 120px; }
+.campo-corto { width: 90px; }
+.aggiunta.in-modifica { outline: 2px solid var(--accento); outline-offset: -1px; }
+
+.interruttore { display: inline-flex; background: var(--superficie-2); border-radius: 8px; padding: 3px; }
+.interruttore input { position: absolute; opacity: 0; pointer-events: none; }
+.interruttore span {
+  display: block; padding: 5px 12px; border-radius: 6px; cursor: pointer;
+  font-size: 13.5px; color: var(--testo-tenue); user-select: none;
+}
+.interruttore input:checked + span { background: var(--superficie); color: var(--testo); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.interruttore input[value="entrata"]:checked + span { color: var(--positivo); }
+.interruttore input:focus-visible + span { outline: 2px solid var(--accento); }
+
+.bottone-primario {
+  border: 0; border-radius: 7px; cursor: pointer;
+  background: var(--accento); color: #fff;
+  padding: 8px 16px; font: inherit; font-size: 14px; font-weight: 550;
+}
+@media (prefers-color-scheme: dark) { .bottone-primario { color: #10161d; } }
+.bottone-primario:hover { filter: brightness(1.08); }
+
+.bottone-leggero {
+  border: 1px solid var(--bordo); background: var(--superficie); color: var(--testo);
+  border-radius: 7px; padding: 7px 12px; font: inherit; font-size: 13.5px; cursor: pointer;
+}
+.bottone-leggero:hover { background: var(--superficie-2); }
+
+.bottone-icona {
+  border: 0; background: none; cursor: pointer;
+  color: var(--testo-tenue); font: inherit; font-size: 12.5px;
+  padding: 3px 7px; border-radius: 6px;
+}
+.bottone-icona:hover { background: var(--superficie-2); color: var(--testo); }
+.bottone-icona.pericolo:hover { background: var(--negativo-tenue); color: var(--negativo); }
+
+.riga-modulo { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.etichetta-in-linea { display: inline-flex; align-items: center; gap: 6px; font-size: 15px; }
+
+.modulo-obiettivo { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 12px; margin-top: 14px; }
+.modulo-obiettivo label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--testo-tenue); white-space: nowrap; }
+.azioni-obiettivo { grid-column: 1 / -1; display: flex; gap: 8px; }
+
+/* ---------- suggerimento stipendio ---------- */
+
+.suggerimento {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  background: var(--accento-tenue); border-radius: var(--raggio);
+  padding: 10px 14px; margin-bottom: 16px; font-size: 14px;
+}
+.suggerimento span { flex: 1; min-width: 200px; }
+
+/* ---------- uscite per categoria ---------- */
+
+.categoria-riga { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; margin-bottom: 10px; font-size: 13.5px; }
+.categoria-nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.categoria-importo { text-align: right; }
+.categoria-quota { color: var(--testo-tenue); font-size: 12px; margin-left: 6px; }
+.categoria-barra { grid-column: 1 / -1; height: 6px; background: var(--superficie-2); border-radius: 3px; overflow: hidden; }
+.categoria-barra div { height: 100%; background: var(--barra); border-radius: 3px; }
+
+/* ---------- elenco movimenti ---------- */
+
+.giorno { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--testo-tenue); margin: 14px 0 4px; }
+.giorno:first-child { margin-top: 0; }
+
+.movimento { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--griglia); font-size: 14px; }
+.movimento:last-child { border-bottom: 0; }
+.movimento-testo { flex: 1; min-width: 0; }
+.movimento-descrizione { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.movimento-categoria { font-size: 12px; color: var(--testo-tenue); }
+.movimento-importo { font-weight: 600; }
+.movimento .azioni { display: flex; opacity: .35; transition: opacity .15s; }
+.movimento:hover .azioni, .movimento:focus-within .azioni { opacity: 1; }
+
+/* ---------- grafico ---------- */
+
+.grafico { position: relative; }
+.grafico svg { display: block; width: 100%; height: auto; overflow: visible; }
+.grafico .asse { font-size: 11px; fill: var(--testo-tenue); }
+.grafico .linea-griglia { stroke: var(--griglia); stroke-width: 1; }
+.grafico .linea-zero { stroke: var(--testo-tenue); stroke-width: 1; }
+.grafico .barra-pos { fill: var(--positivo); }
+.grafico .barra-neg { fill: var(--negativo); }
+.grafico .bersaglio { fill: transparent; cursor: default; }
+.grafico .colonna:hover .barra-pos, .grafico .colonna:hover .barra-neg { filter: brightness(1.15); }
+.grafico .colonna:hover .sfondo-colonna { fill: var(--superficie-2); }
+.grafico .sfondo-colonna { fill: transparent; }
+
+.suggerimento-grafico {
+  position: fixed; z-index: 40; pointer-events: none;
+  background: var(--superficie); border: 1px solid var(--bordo); box-shadow: var(--ombra);
+  border-radius: 8px; padding: 8px 10px; font-size: 12.5px; min-width: 170px;
+}
+.suggerimento-grafico strong { display: block; margin-bottom: 4px; font-size: 13px; }
+.suggerimento-grafico .riga { display: flex; justify-content: space-between; gap: 14px; }
+.suggerimento-grafico .riga span:first-child { color: var(--testo-tenue); }
+
+/* ---------- tabella ---------- */
+
+.tabella { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.tabella th { text-align: right; font-weight: 600; font-size: 12px; color: var(--testo-tenue); padding: 6px 8px; border-bottom: 1px solid var(--bordo); }
+.tabella th:first-child, .tabella td:first-child { text-align: left; }
+.tabella td { text-align: right; padding: 7px 8px; border-bottom: 1px solid var(--griglia); }
+.tabella tr.corrente td { color: var(--testo-tenue); }
+.tabella tr.corrente td:first-child::after { content: " (in corso)"; font-size: 11.5px; }
+.tabella tfoot td { font-weight: 600; border-bottom: 0; border-top: 1px solid var(--bordo); }
+.tabella-contenitore { overflow-x: auto; }
+
+/* ---------- obiettivo ---------- */
+
+.progresso-titolo { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.progresso-nome { font-size: 16px; font-weight: 600; }
+.progresso-cifre { font-size: 14px; }
+.progresso-barra { height: 12px; background: var(--superficie-2); border-radius: 6px; overflow: hidden; margin: 8px 0 10px; }
+.progresso-barra div { height: 100%; background: var(--positivo); border-radius: 6px; min-width: 2px; }
+.progresso-righe { margin: 0; padding: 0; list-style: none; font-size: 14px; }
+.progresso-righe li { padding: 3px 0; }
+
+/* ---------- avviso ---------- */
+
+.avviso {
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+  background: var(--negativo); color: #fff;
+  padding: 10px 18px; border-radius: 8px; font-size: 14px;
+  box-shadow: var(--ombra); z-index: 50; max-width: 90vw;
+}
+
+@media (max-width: 720px) {
+  .riquadri { grid-template-columns: repeat(2, 1fr); }
+  .due-colonne { grid-template-columns: 1fr; }
+  .campo-importo, .campo-categoria { flex: 1; width: auto; min-width: 110px; }
+  .aggiunta .bottone-primario { width: 100%; }
+  .mese-nome { min-width: 0; flex: 1; font-size: 18px; }
+}

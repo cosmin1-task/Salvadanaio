@@ -1,0 +1,7 @@
+dati.json
+dati.backup.json
+dati.json.tmp
+.DS_Store
+node_modules/
+.node-mac/
+node-win/
