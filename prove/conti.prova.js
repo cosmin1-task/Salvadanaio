@@ -132,6 +132,8 @@ av = C.controllaAvvisi(spendaccione, { soglia: 160000 }, '2026-09', []);
 uguale(av.map((a) => a.tipo), ['soglia', 'rosso'], 'settembre a 1.900 spesi: soglia 1.600 e rosso sui 1.850 attesi');
 uguale(av[1].testo, 'Settembre 2026: le uscite (1.900,00 €) hanno superato le entrate previste (1.850,00 €, contando lo stipendio non ancora arrivato) di 50,00 €.', 'il testo dell\'avviso rosso');
 uguale(C.controllaAvvisi(mov, {}, '2026-07', []).length, 0, 'luglio in positivo: nessun rosso');
+uguale(C.controllaAvvisi([{ tipo: 'uscita', importo: 70000, categoria: 'Casa', data: '2026-09-01' }], {}, '2026-09', []).length, 0,
+  'chi non ha mai segnato un\'entrata non riceve l\'avviso rosso');
 const vecchio = [{ tipo: 'soglia', mese: '2026-08' }];
 uguale(C.controllaAvvisi(spendaccione, { soglia: 160000 }, '2026-09', vecchio).length, 2, 'un avviso di agosto non conta per settembre');
 

@@ -405,7 +405,10 @@ function controllaAvvisi(movimenti, impostazioni, mese, notificheEsistenti, fiss
 
   const rif = entrateDiRiferimento(movimenti, mese, fisse, oggi);
   const uscite = riepilogoMese(movimenti, mese).uscite;
-  if (uscite > rif.entrate && uscite > 0 && !gia('rosso')) {
+  // Chi non ha mai segnato un'entrata (per esempio al primo giorno, con solo
+  // l'affitto fra le voci fisse) non e' "in rosso": non ha ancora detto quanto guadagna.
+  const maiEntrate = rif.entrate === 0 && !(movimenti || []).some((m) => m.tipo === 'entrata');
+  if (uscite > rif.entrate && uscite > 0 && !maiEntrate && !gia('rosso')) {
     let comeEntrate = 'le entrate (' + euro(rif.entrate) + ')';
     if (rif.daFisse) comeEntrate = 'le entrate previste (' + euro(rif.entrate) + ', contando le entrate fisse non ancora arrivate)';
     else if (rif.daStipendioScorso) comeEntrate = 'le entrate previste (' + euro(rif.entrate) + ', contando lo stipendio non ancora arrivato)';

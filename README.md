@@ -1,6 +1,6 @@
 # Salvadanaio
 
-**Versione 0.2**
+**Versione 0.3**
 
 Un programma per capire quanto di quello che guadagni riesci a mettere da parte.
 Segni cosa entra e cosa esce; lui ti dice quanto è avanzato ogni mese, che
@@ -8,10 +8,55 @@ percentuale hai risparmiato e quanto ti manca per arrivare a un traguardo.
 Se spendi più di una soglia che scegli tu, ti avvisa. Stipendio, affitto e
 abbonamenti li scrivi una volta sola: ogni mese entrano da soli.
 
-Gira solo sul tuo computer: niente internet, niente account, niente banca
-collegata. Nessun dato esce da qui. Funziona su macOS, Windows e Linux.
+Funziona in due modi, con lo stesso programma:
 
-## Come si avvia
+- **sull'iPhone**, come app sulla schermata Home, con i dati nel telefono;
+- **sul computer** (macOS, Windows, Linux), con i dati in un file della cartella.
+
+In tutti e due i casi: niente account, niente banca collegata, nessun dato che
+esce dal dispositivo.
+
+## Sull'iPhone
+
+1. Apri **Safari** (deve essere Safari) all'indirizzo
+   **https://cosmin1-task.github.io/Salvadanaio/** (ti porta da solo alla
+   pagina dell'app, che finisce in `/public/`)
+2. Tocca il bottone **Condividi** (il quadrato con la freccia in su), poi
+   **Aggiungi alla schermata Home**, poi **Aggiungi**.
+3. Da ora aprilo dall'icona sulla Home: si apre a tutto schermo, come un'app,
+   e funziona anche senza rete.
+
+Fallo prima di inserire dati: quello che scrivi nella pagina aperta in Safari
+resta in Safari, e l'app sulla Home ha una memoria tutta sua.
+
+**Dove stanno i dati.** Nella memoria del telefono, dentro l'app. Non vanno su
+internet e non passano da GitHub: l'indirizzo scarica solo il programma, vuoto.
+Proprio per questo, se cancelli l'icona dalla Home o cambi telefono, i dati se
+ne vanno con lei.
+
+**La copia di sicurezza.** In **Opzioni → Copia di sicurezza** premi *Salva una
+copia*: si apre il foglio di condivisione, scegli **Salva su File** e poi
+**iCloud Drive**. Il file si chiama `salvadanaio-AAAA-MM-GG.json`. Per ripartire
+da una copia (telefono nuovo, app reinstallata) premi *Carica una copia* e
+scegli il file. Se non ne fai una da più di un mese, l'app te lo ricorda in
+Giorno per giorno.
+
+**Portare i dati dal Mac all'iPhone.** Il file della copia ha la stessa forma di
+`dati.json`. Sul Mac, in Impostazioni, premi *Salva una copia* (oppure prendi
+direttamente `dati.json` dalla cartella), mandalo all'iPhone con AirDrop o
+iCloud Drive e caricalo dall'app. Da quel momento tieni i conti sull'iPhone:
+i due non si sincronizzano.
+
+**Gli aggiornamenti** arrivano da soli: quando c'è una versione nuova su
+GitHub, alla prossima apertura con la rete l'app la prende. I dati restano.
+
+Sul telefono le schede sono nella barra in basso: *Giorni*, *Mese*, *Grafico*,
+*Fisse*, *Avvisi*, *Opzioni*. Sul grafico del mese tocca un punto o scorri il
+dito di lato per leggere i numeri di ogni giorno.
+
+## Sul computer
+
+### Come si avvia
 
 Su Mac: doppio clic su **`Avvia Salvadanaio.command`**.
 Su Windows: doppio clic su **`Avvia Salvadanaio.bat`**.
@@ -155,8 +200,12 @@ aprirlo, leggerlo, copiarlo altrove per fare un backup.
 Ad ogni salvataggio viene tenuta una copia della versione precedente in
 `dati.backup.json`. Se qualcosa va storto, quella copia è la tua rete di sicurezza.
 
-Questi due file **non** finiscono nella cronologia di Git, e il repository su
-GitHub è privato. Il codice è su GitHub; i tuoi soldi no.
+Questi due file **non** finiscono nella cronologia di Git. Il repository su
+GitHub è pubblico: chiunque può leggere il codice, nessuno può vedere i tuoi
+dati, perché lì non ci sono mai stati.
+
+Anche dal computer si può salvare una copia (Impostazioni → Copia di sicurezza),
+ed è il modo per portare i dati sull'iPhone.
 
 Gli importi sono salvati in centesimi (12,50 € diventa `1250`). Se apri
 `dati.json` e vedi numeri cento volte più grandi del previsto, è per questo:
@@ -179,18 +228,31 @@ Il consiglio, per ora, è usarlo da un computer solo.
 ## Com'è fatto dentro
 
     Salvadanaio/
-      server.js              il programma: risponde al browser e salva su disco
-      public/index.html      la struttura della pagina
-      public/stile.css       l'aspetto
-      public/app.js          il comportamento: cosa succede quando clicchi
-      public/conti.js        i calcoli: riepiloghi, medie, obiettivo, soglia, avvisi, voci fisse
-                             (li usano sia la pagina sia server.js)
+      server.js              sul computer: risponde al browser e scrive dati.json
+      public/                la web app, la stessa sul computer e sull'iPhone
+        index.html           la struttura della pagina
+        stile.css            l'aspetto (sul telefono: barra in basso, campi grandi)
+        app.js               il comportamento: cosa succede quando tocchi
+        conti.js             i calcoli: riepiloghi, medie, soglia, avvisi, voci fisse
+        archivio.js          le regole su come cambiano i dati (le usano
+                             server.js sul computer e la pagina sull'iPhone)
+        memoria.js           sull'iPhone: dove si salva l'archivio, nel telefono
+        sw.js                sull'iPhone: tiene una copia della pagina per
+                             aprirla senza rete
+        manifest.webmanifest nome e icona per la schermata Home
+        icone/               le icone
+      index.html, .nojekyll  per GitHub Pages: l'indirizzo principale porta a public/
       prove/                 i controlli automatici
       dati.json              i tuoi dati
       Avvia Salvadanaio.command  il file da cliccare su Mac
       Avvia Salvadanaio.bat      il file da cliccare su Windows
 
-Nessuna libreria esterna, nessun `npm install`. Serve solo Node.js.
+Nessuna libreria esterna, nessun `npm install`. Sul computer serve solo
+Node.js; sull'iPhone basta Safari.
+
+Come fa la stessa pagina a sapere dove si trova: se arriva da `localhost` parla
+con `server.js`; da qualunque altro indirizzo fa tutto da sola, con la memoria
+del telefono. (Per provare il modo telefono sul computer: `http://localhost:4322/?telefono`.)
 
 ## Se qualcosa non va
 
@@ -199,21 +261,30 @@ Nessuna libreria esterna, nessun `npm install`. Serve solo Node.js.
   Vai su `http://localhost:4322`, oppure chiudi l'altra finestra nera.
 - **La pagina dice che non riesce a contattare il programma**: hai chiuso la
   finestra nera. Riavvia col doppio clic.
+- **Sull'iPhone non vedo i dati che ho inserito**: forse li hai inseriti nella
+  pagina aperta in Safari e ora apri l'app dalla Home (o il contrario). Sono due
+  memorie separate. Usa sempre l'icona sulla Home.
 
 ## Le prove
 
 Nella cartella `prove/` ci sono i controlli automatici. Per eseguirli:
 
     node prove/conti.prova.js
+    node prove/archivio.prova.js
 
 (sul tuo Mac, dove Node sta nella cartella: `./.node-mac/bin/node prove/conti.prova.js`)
+
+Falle girare prima di ogni push: quello che arriva su GitHub va online
+sull'iPhone nel giro di un minuto.
 
 Controllano che gli importi vengano letti bene in tutti i modi in cui si
 scrivono, che i riepiloghi del mese tornino al centesimo, che il mese in corso
 non entri nella media, che i conti dell'obiettivo siano giusti anche a cavallo
 dell'anno, che gli avvisi scattino quando devono (una volta sola, e non per
 uno stipendio che deve ancora arrivare) e che le voci fisse entrino nel giorno
-giusto, senza doppioni e senza ricomparire dopo essere state tolte.
+giusto, senza doppioni e senza ricomparire dopo essere state tolte. Quelle
+dell'archivio controllano che una copia di sicurezza sbagliata venga rifiutata
+senza toccare niente, e che un `dati.json` delle versioni vecchie si carichi.
 
 ## Cosa manca ancora (i prossimi passi)
 

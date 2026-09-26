@@ -1,13 +1,24 @@
 /* Salvadanaio - logica dell'interfaccia.
-   Tutto gira nel browser; i dati vengono letti e scritti dal server locale.
-   I calcoli stanno in conti.js: qui si disegna e si ascoltano i clic. */
+   Tutto gira nel browser. I calcoli stanno in conti.js, le regole su come
+   cambiano i dati in archivio.js: qui si disegna e si ascoltano i clic.
+
+   Due modi di funzionare, con la stessa pagina:
+   - sul Mac (o Windows) la pagina parla con server.js, che tiene dati.json;
+   - sull'iPhone non c'e' server: l'archivio sta nella memoria del telefono
+     e le stesse regole girano qui dentro. */
+
+// Sul computer la pagina arriva da localhost; da qualunque altro indirizzo
+// (il sito da cui la installi sull'iPhone) gira da sola.
+// "?telefono" nell'indirizzo forza il modo telefono anche sul computer, per provarlo.
+const SUL_TELEFONO = new URLSearchParams(location.search).has('telefono')
+  || !['localhost', '127.0.0.1'].includes(location.hostname);
 
 // ---------------------------------------------------------------- stato
 
 const stato = {
   dati: {
     movimenti: [],
-    impostazioni: { percentualeObiettivo: null, obiettivo: null, soglia: null },
+    impostazioni: { percentualeObiettivo: null, obiettivo: null, soglia: null, ultimaCopia: null },
     notifiche: [],
     fisse: [],
   },
@@ -76,9 +87,39 @@ function segnalaSalvato() {
   timerSalvato = setTimeout(() => el.classList.remove('visibile'), 1400);
 }
 
-// ---------------------------------------------------------------- server
+// ---------------------------------------------------------------- server (o telefono)
+
+/* Sul telefono l'archivio si tiene anche in memoria, e le richieste si
+   mettono in fila: due tocchi veloci non devono salvare uno sopra l'altro. */
+let archivioTelefono = null;
+let codaTelefono = Promise.resolve();
+
+function chiamaTelefono(metodo, percorso, corpo) {
+  const lavoro = codaTelefono.then(async () => {
+    if (!archivioTelefono) archivioTelefono = Archivio.sistema((await Memoria.carica()) || Archivio.vuoto());
+    const esito = Archivio.rispondi(archivioTelefono, metodo, percorso, corpo ? JSON.parse(JSON.stringify(corpo)) : {});
+    if (esito.modificato) {
+      try {
+        await Memoria.salva(archivioTelefono);
+      } catch (e) {
+        archivioTelefono = null; // alla prossima richiesta si riparte da quello salvato davvero
+        avviso('Non riesco a salvare nella memoria del telefono. Riprova; se continua, fai una copia di sicurezza.');
+        throw e;
+      }
+    }
+    // Una copia, come se arrivasse da un server: la pagina non deve poter
+    // cambiare l'archivio senza passare dalle regole.
+    return { codice: esito.codice, corpo: JSON.parse(JSON.stringify(esito.corpo)) };
+  });
+  codaTelefono = lavoro.catch(() => {});
+  return lavoro;
+}
 
 async function chiama(metodo, percorso, corpo) {
+  if (SUL_TELEFONO) {
+    const { codice, corpo: dati } = await chiamaTelefono(metodo, percorso, corpo);
+    return dopoLaRisposta(metodo, codice, dati);
+  }
   let risposta;
   try {
     risposta = await fetch(percorso, {
@@ -91,9 +132,13 @@ async function chiama(metodo, percorso, corpo) {
     throw e;
   }
   const dati = await risposta.json().catch(() => ({}));
-  if (!risposta.ok) {
+  return dopoLaRisposta(metodo, risposta.status, dati);
+}
+
+function dopoLaRisposta(metodo, codice, dati) {
+  if (codice >= 400) {
     avviso(dati.errore || 'Qualcosa e\' andato storto.');
-    throw new Error(dati.errore || risposta.status);
+    throw new Error(dati.errore || codice);
   }
   if (metodo !== 'GET') segnalaSalvato();
   // Ogni scrittura puo' far scattare un avviso: il server lo rimanda indietro.
@@ -129,6 +174,7 @@ function disegna() {
 
   disegnaAvvisiSchermo();
   disegnaContatore();
+  disegnaInstalla();
 
   if (stato.vista === 'giorni') disegnaGiorni();
   if (stato.vista === 'mese') disegnaMese();
@@ -158,6 +204,7 @@ function disegnaGiorni() {
   }
 
   disegnaSuggerimentoStipendio();
+  disegnaPromemoriaCopia();
 
   // --- una riga di sintesi: quanto oggi, quanto nel mese, quanto resta
   const pezzi = [];
@@ -188,7 +235,9 @@ function disegnaGiorni() {
   const cont = $('#elenco-giorni');
   if (!delMese.length) {
     cont.innerHTML = '<div class="vuoto">Nessun movimento in ' + esc(nomeMese(stato.mese)) + '.<br>'
-      + 'Segna la prima spesa dal modulo qui sopra: importo, causale e categoria.</div>';
+      + 'Segna la prima spesa dal modulo qui sopra: importo, causale e categoria.'
+      + (SUL_TELEFONO && !movimenti.length ? '<br><br>Hai gia\' dei dati sul Mac? Salvane una copia li\' e caricala qui, '
+        + 'da <button class="collegamento" data-vai="impostazioni">Opzioni</button>.' : '') + '</div>';
     return;
   }
   const giorni = [];
@@ -683,32 +732,38 @@ function disegnaGraficoMese() {
     svg += '<text class="etichetta-linea ' + e.classe + '" x="' + xe + '" y="' + (e.y + 4) + '">' + esc(e.testo) + '</text>';
   }
 
-  // bersagli per il passaggio del mouse, uno per giorno
-  const larghezza = (L - sx - dx) / Math.max(1, giorniMese - 1);
+  // il mirino: una linea verticale sul giorno indicato
   svg += '<line id="mirino" class="mirino" x1="0" x2="0" y1="' + su + '" y2="' + (A - giu) + '" visibility="hidden"/>';
-  for (const p of serie) {
-    svg += '<rect class="bersaglio" data-giorno="' + p.giorno + '" x="' + (x(p.giorno) - larghezza / 2) + '" y="0" width="' + larghezza + '" height="' + A + '"/>';
-  }
   svg += '</svg>';
   box.innerHTML = svg;
 
+  /* Il giorno si ricava dalla posizione orizzontale, su tutto il grafico:
+     col mouse basta passarci sopra, col dito si tocca o si scorre di lato.
+     (Un bersaglio per giorno sarebbe largo 6 pixel sul telefono.) */
   const tip = $('#suggerimento-grafico');
+  const disegno = box.querySelector('svg');
   const mirino = box.querySelector('#mirino');
-  for (const b of box.querySelectorAll('.bersaglio')) {
-    const p = serie[Number(b.dataset.giorno) - 1];
-    b.addEventListener('mousemove', (e) => {
-      mirino.setAttribute('x1', x(p.giorno)); mirino.setAttribute('x2', x(p.giorno));
-      mirino.setAttribute('visibility', 'visible');
-      const data = stato.mese + '-' + String(p.giorno).padStart(2, '0');
-      tip.innerHTML = '<strong>' + esc(dataLeggibile(data)) + '</strong>'
-        + rigaSuggerimento('Entrate finora', euro(p.entrate))
-        + rigaSuggerimento('Uscite finora', euro(p.uscite))
-        + rigaSuggerimento('Differenza', euro(p.entrate - p.uscite, true))
-        + (soglia ? rigaSuggerimento('Alla soglia', p.uscite > soglia ? 'superata' : euro(soglia - p.uscite)) : '');
-      mostraSuggerimento(tip, e);
-    });
-    b.addEventListener('mouseleave', () => { tip.hidden = true; mirino.setAttribute('visibility', 'hidden'); });
-  }
+  const mostraGiorno = (e) => {
+    const r = disegno.getBoundingClientRect();
+    const xv = (e.clientX - r.left) * L / r.width;
+    const g = Math.round(1 + (xv - sx) / (L - sx - dx) * Math.max(1, giorniMese - 1));
+    const p = serie[Math.min(Math.max(g, 1), serie.length) - 1];
+    mirino.setAttribute('x1', x(p.giorno)); mirino.setAttribute('x2', x(p.giorno));
+    mirino.setAttribute('visibility', 'visible');
+    const data = stato.mese + '-' + String(p.giorno).padStart(2, '0');
+    tip.innerHTML = '<strong>' + esc(dataLeggibile(data)) + '</strong>'
+      + rigaSuggerimento('Entrate finora', euro(p.entrate))
+      + rigaSuggerimento('Uscite finora', euro(p.uscite))
+      + rigaSuggerimento('Differenza', euro(p.entrate - p.uscite, true))
+      + (soglia ? rigaSuggerimento('Alla soglia', p.uscite > soglia ? 'superata' : euro(soglia - p.uscite)) : '');
+    mostraSuggerimento(tip, e);
+  };
+  disegno.addEventListener('pointermove', mostraGiorno);
+  disegno.addEventListener('pointerdown', mostraGiorno);
+  disegno.addEventListener('pointerleave', (e) => {
+    if (e.pointerType === 'touch') return; // col dito resta, finche' non tocchi altrove
+    tip.hidden = true; mirino.setAttribute('visibility', 'hidden');
+  });
 
   legenda.innerHTML = voceLegenda('entrate', 'Entrate accumulate')
     + voceLegenda('uscite', 'Uscite accumulate')
@@ -802,7 +857,7 @@ function disegnaAndamento() {
   const tip = $('#suggerimento-grafico');
   for (const g of grafico.querySelectorAll('.colonna')) {
     const r = ultimi[Number(g.dataset.indice)];
-    g.addEventListener('mousemove', (e) => {
+    g.addEventListener('pointermove', (e) => {
       tip.innerHTML = '<strong>' + esc(nomeMese(r.mese)) + (r.mese === meseCorrente() ? ' (in corso)' : '') + '</strong>'
         + rigaSuggerimento('Entrate', euro(r.entrate))
         + rigaSuggerimento('Uscite', euro(r.uscite))
@@ -810,7 +865,7 @@ function disegnaAndamento() {
         + rigaSuggerimento('Messo da parte', percentuale(r.percentuale));
       mostraSuggerimento(tip, e);
     });
-    g.addEventListener('mouseleave', () => { tip.hidden = true; });
+    g.addEventListener('pointerleave', (e) => { if (e.pointerType !== 'touch') tip.hidden = true; });
     // un clic su una colonna porta a quel mese
     g.addEventListener('click', () => { stato.mese = r.mese; tip.hidden = true; disegna(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
   }
@@ -1089,6 +1144,15 @@ async function segnaLette(ids) {
 function disegnaImpostazioni() {
   const { movimenti, impostazioni } = stato.dati;
 
+  // --- copia di sicurezza
+  $('#dove-sono-i-dati').innerHTML = SUL_TELEFONO
+    ? 'I tuoi dati stanno solo in questo telefono, non vanno da nessuna parte. Proprio per questo, se cancelli l\'app '
+      + 'dalla Home o cambi telefono, spariscono. Salva ogni tanto una copia: si apre il foglio di condivisione, '
+      + 'scegli <strong>Salva su File</strong> e poi <strong>iCloud Drive</strong>.'
+    : 'I tuoi dati stanno nel file dati.json, nella cartella del Salvadanaio. Da qui puoi salvarne una copia, '
+      + 'per esempio per portarla sull\'iPhone con AirDrop o iCloud Drive.';
+  $('#ultima-copia').textContent = testoUltimaCopia();
+
   // --- soglia
   const fs = $('#form-soglia');
   if (document.activeElement !== fs.soglia) fs.soglia.value = impostazioni.soglia ? importoPerCampo(impostazioni.soglia) : '';
@@ -1164,6 +1228,119 @@ async function togliObiettivo() {
   await salvaImpostazioni({ obiettivo: null });
 }
 
+// ================================================================ COPIA DI SICUREZZA
+
+const GIORNI_PROMEMORIA = 30;
+
+function giorniDa(isoCompleto) {
+  if (!isoCompleto) return null;
+  const d = new Date(isoCompleto);
+  return isNaN(d) ? null : Math.floor((Date.now() - d.getTime()) / 86400000);
+}
+
+function testoUltimaCopia() {
+  const g = giorniDa(stato.dati.impostazioni.ultimaCopia);
+  if (g === null) return 'Nessuna copia fatta finora.';
+  if (g === 0) return 'Ultima copia: oggi.';
+  if (g === 1) return 'Ultima copia: ieri.';
+  return 'Ultima copia: ' + g + ' giorni fa.';
+}
+
+/* Sul telefono i dati stanno solo li'. Se non c'e' mai stata una copia, o
+   l'ultima ha piu' di un mese, lo ricordo in cima a Giorno per giorno. */
+function disegnaPromemoriaCopia() {
+  const box = $('#promemoria-copia');
+  const g = giorniDa(stato.dati.impostazioni.ultimaCopia);
+  const serve = SUL_TELEFONO && stato.dati.movimenti.length > 0 && (g === null || g >= GIORNI_PROMEMORIA);
+  box.hidden = !serve;
+  if (!serve) return;
+  box.innerHTML = '<span>' + (g === null ? 'I tuoi dati stanno solo su questo telefono e non ne hai ancora una copia.'
+    : 'L\'ultima copia di sicurezza ha ' + g + ' giorni.') + '</span>'
+    + '<button class="collegamento" data-copia="salva">Salvala ora</button>';
+}
+
+/* Salva l'archivio in un file. Sull'iPhone si apre il foglio di
+   condivisione: "Salva su File" e scegli iCloud Drive. Sul computer il
+   file finisce fra i download. */
+async function salvaCopia() {
+  const dati = await chiama('GET', '/api/dati');
+  const nome = 'salvadanaio-' + oggiIso() + '.json';
+  const file = new File([JSON.stringify(dati, null, 2)], nome, { type: 'application/json' });
+  let fatta = false;
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: 'Salvadanaio: copia di sicurezza' });
+      fatta = true;
+    } catch (e) {
+      if (e.name === 'AbortError') return; // hai chiuso il foglio senza salvare: nessuna copia
+      fatta = scaricaFile(file);
+    }
+  } else {
+    fatta = scaricaFile(file);
+  }
+  if (fatta) {
+    const r = await chiama('POST', '/api/copia-fatta');
+    stato.dati.impostazioni = r.impostazioni;
+    avviso('Copia salvata: ' + nome, true);
+    disegna();
+  }
+}
+
+function scaricaFile(file) {
+  const url = URL.createObjectURL(file);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = file.name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  return true;
+}
+
+// Carica un file di copia e sostituisce l'archivio di questo dispositivo.
+async function caricaCopia(file) {
+  let letto;
+  try {
+    letto = JSON.parse(await file.text());
+  } catch (e) {
+    avviso('Questo file non e\' una copia del Salvadanaio.');
+    return;
+  }
+  const n = Array.isArray(letto.movimenti) ? letto.movimenti.length : 0;
+  const f = Array.isArray(letto.fisse) ? letto.fisse.length : 0;
+  const qui = stato.dati.movimenti.length;
+  if (!confirm('Caricare la copia "' + file.name + '"?\n\nContiene ' + n + ' movimenti e ' + f + ' voci fisse.'
+    + (qui ? '\n\nI ' + qui + ' movimenti che ci sono ora su questo dispositivo verranno sostituiti.' : ''))) return;
+  const r = await chiama('POST', '/api/importa', { dati: letto });
+  stato.dati = r.dati;
+  aggiornaCategorie();
+  avviso('Copia caricata: ' + n + ' movimenti.', true);
+  mostraVista('giorni');
+}
+
+// ================================================================ INSTALLAZIONE SULL'IPHONE
+
+const APERTA_DALLA_HOME = window.navigator.standalone === true
+  || window.matchMedia('(display-mode: standalone)').matches;
+const E_UN_IPHONE = /iPhone|iPad|iPod/.test(navigator.userAgent)
+  || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+/* Aperta in Safari e non dalla Home: spiego come installarla. E avviso che
+   quello che si scrive qui in Safari resta in Safari: l'app sulla Home ha
+   una memoria sua. */
+function disegnaInstalla() {
+  const box = $('#installa');
+  const mostra = SUL_TELEFONO && E_UN_IPHONE && !APERTA_DALLA_HOME;
+  box.hidden = !mostra;
+  if (!mostra) return;
+  box.innerHTML = '<span><strong>Installala sulla Home:</strong> tocca il bottone Condividi '
+    + '<svg class="icona-condividi" viewBox="0 0 24 24" width="17" height="17" aria-label="Condividi">'
+    + '<path d="M12 3v12M7.5 7.5 12 3l4.5 4.5M6 11H5v10h14V11h-1" fill="none" stroke="currentColor" stroke-width="2" '
+    + 'stroke-linecap="round" stroke-linejoin="round"/></svg> in basso, poi <strong>Aggiungi alla schermata Home</strong>. '
+    + 'Poi aprila da li\': quello che scrivi qui in Safari non passa all\'app installata.</span>';
+}
+
 // ================================================================ avvio
 
 function collega() {
@@ -1189,13 +1366,27 @@ function collega() {
 
   // Bottoni sparsi nella pagina: "vai a una scheda", "vai a un mese", "segna come letta".
   document.addEventListener('click', (e) => {
-    const b = e.target.closest('[data-vai], [data-mese], [data-letta]');
+    const b = e.target.closest('[data-vai], [data-mese], [data-letta], [data-copia]');
     if (!b) return;
+    if (b.dataset.copia) return salvaCopia();
     if (b.dataset.letta) return segnaLette([b.dataset.letta]);
     if (b.dataset.mese) { stato.mese = b.dataset.mese; return mostraVista('mese'); }
     if (b.dataset.vai) return mostraVista(b.dataset.vai);
   });
   $('#segna-lette').onclick = () => segnaLette(null);
+
+  // Col dito, il riquadro coi numeri del grafico si chiude toccando altrove.
+  document.addEventListener('pointerdown', (e) => {
+    if (!e.target.closest('.grafico')) $('#suggerimento-grafico').hidden = true;
+  });
+
+  $('#salva-copia').onclick = salvaCopia;
+  $('#carica-copia').onclick = () => $('#file-copia').click();
+  $('#file-copia').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (file) caricaCopia(file).catch(() => {}); // l'errore e' gia' stato mostrato
+  });
 
   const fv = $('#form-voce');
   fv.addEventListener('submit', inviaModuloVoce);
@@ -1230,6 +1421,20 @@ window.addEventListener('resize', () => {
   timerRidisegno = setTimeout(() => { if (stato.vista === 'grafico') disegna(); }, 150);
 });
 
+// Sul telefono l'app resta aperta in sottofondo per giorni: quando torna in
+// primo piano ricarico, cosi' le voci fisse arrivate nel frattempo entrano.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && !stato.modifica && !stato.modificaVoce) {
+    caricaTutto().catch(() => {});
+  }
+});
+
 collega();
 $('#form-movimento [name=data]').value = oggiIso();
 caricaTutto().then(aggiornaCategorie);
+
+if (SUL_TELEFONO) {
+  Memoria.rendiPersistente();
+  // Il "service worker" tiene una copia della pagina, cosi' si apre anche senza rete.
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+}

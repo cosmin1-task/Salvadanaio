@@ -296,6 +296,7 @@ input:focus, select:focus { outline: 2px solid var(--accento); outline-offset: -
   background: var(--negativo); color: #fff;
   padding: 10px 18px; border-radius: 8px; font-size: 14px;
   box-shadow: var(--ombra); z-index: 50; max-width: 90vw;
+  pointer-events: none; /* un messaggio non deve coprire i tocchi */
 }
 
 @media (max-width: 720px) {
@@ -435,3 +436,65 @@ input:focus, select:focus { outline: 2px solid var(--accento); outline-offset: -
   .campo-da { max-width: none; flex: 1; }
 }
 #vista-fisse .due-colonne { margin-top: 12px; }
+
+/* ---------- 0.3: iPhone ---------- */
+
+.scheda .corto { display: none; }
+
+.promemoria-copia {
+  display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline;
+  margin: 0 2px 14px; font-size: 13.5px; color: var(--avviso-soglia);
+}
+.promemoria-copia[hidden] { display: none; }
+
+.installa { background: var(--avviso-soglia-tenue); }
+.icona-condividi { display: inline-block; vertical-align: -3px; margin: 0 2px; color: var(--accento); }
+
+/* Aperta dalla Home, la pagina arriva sotto l'orologio e sopra la barra in
+   basso: le "zone sicure" dicono quanto spazio lasciare. */
+.testata { padding-top: calc(14px + env(safe-area-inset-top)); }
+main {
+  padding-left: calc(16px + env(safe-area-inset-left));
+  padding-right: calc(16px + env(safe-area-inset-right));
+}
+
+@media (max-width: 720px) {
+  /* Un filtro sulla testata farebbe da "cornice" alla barra fissa: la
+     barra finirebbe in cima invece che in fondo. Quindi niente sfocatura qui. */
+  .testata { backdrop-filter: none; -webkit-backdrop-filter: none; background: var(--sfondo); }
+
+  /* Sul telefono le schede diventano la barra in basso, a portata di pollice. */
+  .schede {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+    margin: 0; gap: 0; overflow: visible;
+    background: color-mix(in srgb, var(--superficie) 94%, transparent);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border-top: 1px solid var(--bordo);
+    padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+  }
+  .scheda {
+    flex: 1; min-width: 0; padding: 8px 2px; border-radius: 8px;
+    font-size: 12.5px; border-bottom: 0; position: relative;
+  }
+  .scheda.attiva { background: var(--accento-tenue); color: var(--accento); }
+  .scheda .lungo { display: none; }
+  .scheda .corto { display: inline; }
+  .contatore { position: absolute; top: 1px; right: 4px; margin: 0; min-width: 16px; line-height: 16px; font-size: 10px; padding: 0 4px; }
+  .testata { padding-bottom: 10px; }
+  main { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+  .avviso { bottom: calc(76px + env(safe-area-inset-bottom)); }
+
+  /* Sotto i 16px Safari ingrandisce la pagina quando tocchi un campo. */
+  input, select, textarea { font-size: 16px; }
+  .campo-importo { font-size: 17px; }
+
+  /* Col dito "Modifica" ed "Elimina" devono essere sempre visibili e grandi. */
+  .movimento .azioni { opacity: 1; flex-direction: column; gap: 2px; }
+  .bottone-icona { padding: 6px 8px; }
+}
+
+* { -webkit-tap-highlight-color: transparent; }
+
+/* Sul grafico del mese il dito scorre di lato per leggere i giorni, e
+   la pagina scorre solo in verticale. */
+#grafico-mese svg { touch-action: pan-y; }

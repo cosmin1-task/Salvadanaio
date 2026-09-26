@@ -2,6 +2,54 @@
 
 Ogni versione del Salvadanaio, dalla più recente alla più vecchia.
 
+## 0.3 - 26 settembre 2026
+
+Il Salvadanaio sull'iPhone.
+
+**Aggiunto**
+
+- Si installa sulla schermata Home dell'iPhone da
+  https://cosmin1-task.github.io/Salvadanaio/ e si apre a tutto schermo, con
+  la sua icona.
+- Sull'iPhone i dati stanno nella memoria del telefono e non escono da lì.
+  Nessun server: le stesse regole del Mac girano dentro la pagina.
+- Funziona senza rete: la pagina resta salvata nel telefono.
+- Copia di sicurezza, sul telefono e sul computer: *Salva una copia* (sull'iPhone
+  apre il foglio di condivisione, per salvarla in iCloud Drive) e *Carica una
+  copia*. Una copia sbagliata viene rifiutata senza toccare niente.
+- Il `dati.json` del Mac si carica sull'iPhone così com'è, anche delle
+  versioni vecchie.
+- Promemoria in Giorno per giorno se sul telefono non c'è una copia da più di
+  30 giorni.
+- Aperta in Safari invece che dalla Home, la pagina spiega come installarla.
+- A ogni push su GitHub la nuova versione va online da sola (GitHub Pages).
+
+**Cambiato**
+
+- Sul telefono le schede sono una barra in basso, con nomi corti; i campi sono
+  abbastanza grandi da non far ingrandire la pagina quando li tocchi; Modifica
+  ed Elimina sono sempre visibili.
+- Sul grafico del mese il giorno si sceglie toccando o scorrendo il dito su
+  tutto il grafico, non più su una striscia larga pochi pixel.
+- Quando l'app torna in primo piano i dati si ricaricano, così le voci fisse
+  del giorno entrano anche se era rimasta aperta.
+- L'avviso di mese in rosso non scatta per chi non ha mai segnato un'entrata:
+  al primo giorno, con solo l'affitto fra le voci fisse, era un falso allarme.
+- Il repository su GitHub è pubblico. I dati non ci sono mai stati.
+
+**Scelte tecniche**
+
+- Le regole su come cambiano i dati sono passate da `server.js` a
+  `public/archivio.js`, che usano sia il server del Mac sia la pagina
+  sull'iPhone. Un posto solo, e nuove prove in `prove/archivio.prova.js`.
+- Sull'iPhone l'archivio sta in IndexedDB, con la versione precedente
+  accanto, e si chiede al telefono di non cancellarlo mai per fare spazio.
+- Il service worker prende la pagina dalla rete quando c'è e dalla copia
+  quando manca: gli aggiornamenti arrivano senza dover reinstallare.
+- GitHub Pages pubblica il repository cosi' com'e': una pagina all'indirizzo
+  principale porta a `public/`, dove sta l'app. `dati.json` non e' nel
+  repository, quindi non e' online.
+
 ## 0.2 - 25 settembre 2026
 
 Le voci fisse: stipendio, affitto e abbonamenti si scrivono una volta sola.

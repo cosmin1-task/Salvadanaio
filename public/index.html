@@ -2,8 +2,18 @@
 <html lang="it">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Salvadanaio</title>
+<!-- Per l'iPhone: icona, nome e aspetto quando e' aggiunta alla schermata Home -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icone/icona-192.png">
+<link rel="apple-touch-icon" href="icone/icona-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Salvadanaio">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#f7f6f3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#16171a" media="(prefers-color-scheme: dark)">
 <link rel="stylesheet" href="stile.css">
 </head>
 <body>
@@ -14,16 +24,19 @@
     <span id="stato-salvataggio" class="stato-salvataggio" aria-live="polite"></span>
   </div>
   <nav class="schede" role="tablist">
-    <button class="scheda attiva" data-vista="giorni" role="tab">Giorno per giorno</button>
+    <button class="scheda attiva" data-vista="giorni" role="tab"><span class="lungo">Giorno per giorno</span><span class="corto">Giorni</span></button>
     <button class="scheda" data-vista="mese" role="tab">Mese</button>
     <button class="scheda" data-vista="grafico" role="tab">Grafico</button>
-    <button class="scheda" data-vista="fisse" role="tab">Voci fisse</button>
-    <button class="scheda" data-vista="notifiche" role="tab">Notifiche <span id="contatore-notifiche" class="contatore" hidden></span></button>
-    <button class="scheda" data-vista="impostazioni" role="tab">Impostazioni</button>
+    <button class="scheda" data-vista="fisse" role="tab"><span class="lungo">Voci fisse</span><span class="corto">Fisse</span></button>
+    <button class="scheda" data-vista="notifiche" role="tab"><span class="lungo">Notifiche</span><span class="corto">Avvisi</span> <span id="contatore-notifiche" class="contatore" hidden></span></button>
+    <button class="scheda" data-vista="impostazioni" role="tab"><span class="lungo">Impostazioni</span><span class="corto">Opzioni</span></button>
   </nav>
 </header>
 
 <main>
+
+  <!-- Sull'iPhone, aperta in Safari: come installarla -->
+  <div id="installa" class="suggerimento installa" hidden></div>
 
   <!-- AVVISI A SCHERMO: compaiono quando scatta una soglia, restano finche' non li chiudi -->
   <div id="avvisi-schermo" aria-live="assertive"></div>
@@ -39,6 +52,7 @@
   <section id="vista-giorni" class="vista">
 
     <div id="suggerimento-stipendio" class="suggerimento" hidden></div>
+    <div id="promemoria-copia" class="promemoria-copia" hidden></div>
 
     <form id="form-movimento" class="riquadro aggiunta" autocomplete="off">
       <div class="interruttore" role="radiogroup" aria-label="Tipo di movimento">
@@ -151,6 +165,17 @@
   <section id="vista-impostazioni" class="vista" hidden>
 
     <section class="riquadro">
+      <h3 class="titolo-riquadro">Copia di sicurezza</h3>
+      <p id="dove-sono-i-dati" class="spiegazione"></p>
+      <div class="riga-modulo">
+        <button type="button" id="salva-copia" class="bottone-primario">Salva una copia</button>
+        <button type="button" id="carica-copia" class="bottone-leggero">Carica una copia</button>
+        <input type="file" id="file-copia" accept=".json,application/json" hidden>
+      </div>
+      <p id="ultima-copia" class="spiegazione piccola"></p>
+    </section>
+
+    <section class="riquadro">
       <h3 class="titolo-riquadro">Soglia di sicurezza</h3>
       <p class="spiegazione">Fino a questa cifra di uscite nel mese non ti disturbo. Quando la superi, compare un avviso
         e lo ritrovi fra le notifiche. Ti avviso anche se il mese va in rosso, cioe' se spendi piu' di quanto entra.</p>
@@ -199,6 +224,8 @@
 <div id="avviso" class="avviso" hidden></div>
 
 <script src="conti.js"></script>
+<script src="archivio.js"></script>
+<script src="memoria.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
